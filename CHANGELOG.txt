@@ -1,0 +1,19 @@
+## 0.1.0 - 2026-09-29
+- Nový projekt Backtest Lab – fáze 1 „Zdraví dat" (jedna obrazovka). Lab je read-only:
+  čte %APPDATA%\futures-journal-pro\ai-export\*.json (respektuje customDataDir deníku,
+  cestu jde přepsat), nic do deníku nezapisuje. Vlastní úložiště jen na pohledy
+  (%APPDATA%\backtest-lab\views.json: deník, rozsah dat, filtry, motiv).
+- app/normalize.js – jediné místo předzpracování záznamu: ceny ze stringů, R se
+  znaménkem (rMultiple × znaménko exitTicks – deník ukládá rMultiple bez znaménka),
+  isTrade / isLegacy / isLiveEligible, srTarget / srStopLoss ve starém (klíče) i novém
+  tvaru ({level, price, ticksFromEntry}), 0 ≠ prázdné.
+- app/health.js – A) přehled vzorku a použitelnost pro R, SL sweep, dosažitelnost TP,
+  mřížku SL × TP, cílové hladiny, překážky (srTarget) a fill rate; B) úplnost polí;
+  C) kontroly 1–13 (11–13 = připravenost na mřížku SL × TP, kontrola 11 nahoře);
+  D) odhad dnů do 50 / 100 použitelných pro SL sweep.
+- Obchody legacyPointsConvention se ukazují, ale do použitelných nevstupují.
+  wouldSkipLive (až ho deník začne zapisovat) je ve výchozím stavu mimo výkon,
+  ve fill rate zůstává; přepínač ve filtrech.
+- Živé obnovení při uložení v deníku (fs.watch).
+- Testy (node --test): normalizace, všechny kontroly vč. prahů, read-only pojistka
+  (zápis fs jen ve writeViews přes assertLabWritable).

@@ -1,0 +1,14 @@
+{
+  "name": "backtest-lab",
+  "version": "0.1.0",
+  "description": "Backtest Lab 0.1.0 – zdraví dat z Futures Journal PRO (read-only).",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0"
+  }
+}

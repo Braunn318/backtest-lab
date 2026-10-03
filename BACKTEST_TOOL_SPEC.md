@@ -3,6 +3,167 @@
 > Zadání pro Claude Code. Nový projekt, ne úprava deníku.
 > Pracovní název `Backtest Lab`, přejmenuj podle chuti.
 > Verze 1.0, 13. 9. 2026 · Autor zadání: Adam
+> **Revize R2, 3. 10. 2026** — sekce 0 níže má přednost před zbytkem specu.
+
+---
+
+## 0. Revize — čti první, mají přednost před zbytkem specu
+
+### R2 — 3. 10. 2026 · deník 4.6.9 → 4.7.2
+
+Ověřeno proti `ai-export/journal_1790178881642_mhr7kq.json` (deník **Backtest_1**,
+54 obchodů + 2 SETUP_ONLY, dny 3.–7. 8. 2026), ne podle specu. Tvar polí vždy ověř
+v datech.
+
+---
+
+#### R2.1 Nová pole — doplnit do `app/normalize.js`
+
+| pole | tvar | význam |
+|---|---|---|
+| `srTargetNone`, `srStopLossNone` | `true` / chybí | **„žádná hladina v cestě"** — vědomé „nic tam nebylo", NE nevyplněno |
+| `mfeTicksSource`, `maeTicksSource` | `'nt8'` / chybí | čím bylo MFE/MAE naměřeno |
+| `mfeTicksDerived`, `maeTicksDerived` | `true` / chybí | hodnota **dopočítaná z výstupní ceny**, ne měření |
+| `slDerived` | `true` / `false` | `slPrice` dopočítaná z výstupní ceny (4.7.1) |
+| `targetLevel1PriceDerived` | `true` / chybí | cena cílové hladiny převzatá z výstupní ceny |
+| `plannedRMultiple` | číslo | plánované R zadané předem (12 obchodů) |
+| `wouldSkipLive`, `wouldSkipReason` | `true` + klíč `SKIP_REASON` | deník je **už zapisuje** (6 obchodů) |
+
+`mfeTicksSource / maeTicksSource / mfeTicksDerived / maeTicksDerived / slDerived`
+jsou dnes v `SYSTEM_FIELDS`, tedy mimo analýzu. **Přesuň je ven** — nejsou to technické
+příznaky importu, je to původ hodnoty a analýza ho potřebuje (R2.3).
+
+#### R2.2 „Žádná hladina" má v datech dva zápisy
+
+Oba znamenají totéž a oba se v exportu vyskytují:
+
+```
+srTargetNone: true                                  7 obchodů
+srTarget: [{ level: 'NONE', price: null, … }]      11 řádků
+```
+
+Totéž u `entryLevels: ['NONE']` (4×) a `ofConfirm: ['NONE']` (24×).
+
+Normalizace musí dát jednu odpověď:
+
+```js
+// „nic tam nebylo" ≠ „nevyplněno" ≠ „překážka tam byla"
+noneFlag === true  ||  rows.length === 0 && noneFlag === true  ||
+rows.every(r => r.level === 'NONE')      → explicitně žádná hladina
+rows.length === 0 && noneFlag !== true   → nevyplněno
+```
+
+Bez toho §5.4d nemá kontrolní skupinu — „bez překážky" a „nevyplněno" splynou
+a hit rate s překážkou se poměřuje proti smetišti.
+
+#### R2.3 Dopočítaná hodnota není měření — platí pro celou §5.4
+
+Od deníku 4.6.6 se MFE/MAE u části obchodů **dopočítává z výstupní ceny**:
+u obchodu na targetu je dopočítané `mfeTicks` z definice rovno `exitTicks`.
+
+Důsledek, pokud se to nerozliší:
+
+- **§5.4b (kolik bylo nechané na stole)** = `max − exitTicks` → u každého takového
+  obchodu vyjde **systematicky 0**. Ne „nic se nenechalo", ale „neměřeno".
+- **§5.4e (SL sweep)** a **§5.4f (mřížka)** dostanou falešně těsné rozpětí.
+
+**Pravidlo:** do §5.4 b, c, e, f vstupují jen **naměřené** excursions
+(`*Derived !== true`). Dopočítané se zobrazí zvlášť jako „dopočítáno, do výpočtu
+nevstupuje: N". Totéž platí pro kontrolu 11 ve zdraví dat — je to její obecná verze.
+
+Dnešní stav vzorku: `mfeTicksSource: 'nt8'` 31×, dopočítáno 4×, chybí 19×.
+
+#### R2.4 `targetLevel1 = MANUAL_EXIT` s dopočítanou cenou není cíl
+
+```
+targetLevel1 vyplněno            23 / 54
+  z toho MANUAL_EXIT             13      ← „vystoupil jsem ručně", ne plánovaná hladina
+  s dopočítanou cenou (= exit)    4
+reálně plánovaná hladina         ~10
+```
+
+§5.4a a §5.4c stojí na tom, že cíl byl zvolen podle hladiny. `MANUAL_EXIT`
+s `targetLevel1PriceDerived: true` je zápis toho, kde Adam náhodou vystoupil —
+do dosažitelnosti hladin nepatří.
+
+**Tohle je dnes úzké hrdlo celé §5.4, ne MFE.** Lab musí nahoře u každé analýzy
+ukázat použitelné N a čím se liší od celkového vzorku.
+
+#### R2.5 `wouldSkipLive` — zrcadli chování deníku, neurčuj si vlastní
+
+Deník 4.7.0 vede všechny výkonové agregace přes jeden filtr `performanceRecords()`:
+
+- ve výchozím stavu **mimo** equity, P/L, win rate, expectancy, drawdown, kalendář, reporty
+- **ve fill rate zůstávají** (jestli se limitka naplnila je mechanika, ne rozhodnutí)
+- přepínač „včetně obchodů, které bych naživo nevzal" je **jeden pro celou aplikaci**
+- samostatný blok se počtem, P/L, win rate, rozpadem podle důvodu
+  a **„Expectancy bez nich / s nimi"**, který se zobrazuje bez ohledu na přepínač
+
+Lab musí mít stejný výchozí stav i stejný přepínač, jinak si obě aplikace nad týmiž
+daty protiřečí. Blok „Expectancy bez nich / s nimi" převezmi — odpovídá na to, jestli
+Adama jeho vlastní filtr nestojí peníze.
+
+Vzorek: 6 obchodů, důvody `SR_IN_WAY` 3×, `RISK_RULE` 2×, `LIQUIDITY_SWEPT` 1×.
+
+#### R2.6 Úplnost polí = definice deníku, ne vlastní seznam
+
+Deník 4.7.1 má autoritativní definici v `FJTaxonomy.missingContextKeys(trade, config)`
+(`app/taxonomy.js`): kontroluje setup, fillStatus, trend, entryLevels, srTarget,
+srStopLoss, ofConfirm, targetLevel1 (typ **i** cena), slPrice, mfeTicks, maeTicks,
+postExitFavorableTicks, postExitAdverseTicks. Nula a dopočítaná hodnota jsou vyplněné.
+U nenaplněného setupu (NO_FILL / MISSED / SKIPPED) se průběh a výstup nekontrolují.
+
+Sekce B zdraví dat ať jede podle téhož seznamu, aby „⚠ Neúplné · N" v deníku
+a „chybí" v Labu seděly.
+
+⚠️ **Nepřebírej** nastavení karet (`FJ_tradeCards`, deník 4.7.2). Vypnutá karta je
+rozhodnutí o formuláři — pro analýzu chybí dál to, co chybí.
+
+#### R2.7 Export nenese taxonomii ani příznaky deníku — **rozhodnuto 3. 10.**
+
+Skutečný tvar souboru:
+
+```
+ai-export/<journalId>.json  →  { journalId, updatedAt, trades[], dayNotes{} }
+ai-export/index.json        →  { updatedAt, journals: [{ id, name }] }
+```
+
+Chybí popisky slovníků a příznaky deníku (`backtest`, `hidden`).
+
+**Rozhodnutí: deník se kvůli tomu nemění.** Lab si nese vlastní mapu
+klíč → popisek (`app/labels.js`, převzatá z výchozích slovníků v
+`repo_clone/app/taxonomy.js`); neznámý klíč zobrazí tak, jak přišel,
+a nahlásí ho ve zdraví dat. Deník vybírá uživatel ručně ze seznamu,
+Lab nahoře vždy ukáže který, kolik záznamů a jaký rozsah dat.
+
+V datech je dnes jeden takový pozůstatek: `VWAP_DEV` v `srStopLoss`
+u jednoho obchodu (slovník, který už v deníku není). Lab ho jen nahlásí —
+opravit obchod je na uživateli, Lab nezapisuje.
+
+#### R2.8 Vzorek — fáze 2 je prakticky odblokovaná
+
+```
+obchodů (TRADE)              54        targetů 26 / stoplossů 28
+naměřené maxAdverseTicks     42        → SL sweep (§5.4e)
+naměřené maxFavorableTicks   40        → mřížka SL × TP (§5.4f)
+slPrice                      46        (z toho 15 dopočítaných, 4.7.1)
+observedMinutes              23
+plánovaná cílová hladina    ~10        → §5.4a, §5.4c  ← úzké hrdlo
+```
+
+Práh §5.5 (N ≥ 50 pro SL sweep) je na dosah. Mřížku je možné postavit teď,
+povinně s varováním o vzorku a s vyznačením okolí maxima.
+
+#### R2.9 Drobnosti z dat
+
+- `setupCode: ''` u 14 obchodů — prázdný řetězec, ne chybějící klíč. Normalizace
+  ho už dělá na `null`; v rozpadech podle setupu se musí ukázat jako „bez setupu N",
+  ne tiše vypadnout.
+- `fillStatus` je `FILLED` u všech 54; `NO_FILL` / `SKIPPED` žijí jen na dvou
+  SETUP_ONLY záznamech → jmenovatel fill rate je zatím 2. Práh fill rate (oprava
+  fáze 1) na tom stojí.
+- Deník 4.6.9: SETUP_ONLY už nevstupuje do Podílu instrumentů — Lab je vylučuje
+  stejně, nic se nemění.
 
 ---
 

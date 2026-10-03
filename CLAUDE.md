@@ -73,6 +73,8 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
 - Fixtury z reálných dat (kdyby byly potřeba) patří do „Claude files/" (gitignore), ne do repa.
 
 ## Konvence
+- Repozitář: github.com/Braunn318/backtest-lab (veřejný, jako deník). `main` = ověřený
+  stav, `test` = rozpracované; merge do main až po ověření uživatelem.
 - Kód na branchi test, merge do main až po ověření.
 - Testy: vestavěný node:test, bez nových závislostí (`npm test`). Spuštění: `npm start`.
 - Tento soubor a CHANGELOG.txt jsou sdílený stav napříč chaty —

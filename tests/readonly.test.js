@@ -46,7 +46,9 @@ test('main.js nastavuje vlastní userData před startem', () => {
 });
 
 test('okno, preload a knihovny na fs nesahají', () => {
-  for (const f of ['preload.js', 'app/normalize.js', 'app/health.js', 'app/ui.js', 'lib/paths.js']) {
+  const appFiles = fs.readdirSync(path.join(ROOT, 'app')).filter(f => f.endsWith('.js')).map(f => 'app/' + f);
+  assert.ok(appFiles.length >= 5);
+  for (const f of ['preload.js', 'lib/paths.js', ...appFiles]) {
     const src = read(f);
     assert.equal(/require\(['"](node:)?fs['"]\)/.test(src), false, f + ' načítá fs');
     assert.equal([...src.matchAll(WRITE_CALL)].length, 0, f + ' volá zápis');

@@ -24,7 +24,9 @@ app.setPath('userData', LAB_DIR);
 
 const VIEWS_FILE = path.join(LAB_DIR, 'views.json');
 // Co se o pohledu ukládá. Nic o obchodech.
-const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'showOutsideIndex', 'sourceDir', 'theme'];
+const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'showOutsideIndex', 'sourceDir', 'theme', 'screen', 'levelTolerance', 'sweepTargetR'];
+// Číselná nastavení analýz a jejich povolený rozsah.
+const VIEW_NUMBERS = { levelTolerance: [0, 20], sweepTargetR: [0.25, 10] };
 
 let mainWindow = null;
 let watcher = null;
@@ -48,7 +50,11 @@ function sanitizeViews(input) {
     const v = src[key];
     if (v === undefined || v === null || v === '') continue;
     if (key === 'includeSkipLive' || key === 'showOutsideIndex') out[key] = v === true;
-    else out[key] = String(v).slice(0, 1000);
+    else if (VIEW_NUMBERS[key]) {
+      const n = Number(v);
+      const [min, max] = VIEW_NUMBERS[key];
+      if (Number.isFinite(n) && n >= min && n <= max) out[key] = n;
+    } else out[key] = String(v).slice(0, 1000);
   }
   return out;
 }

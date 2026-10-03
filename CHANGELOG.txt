@@ -1,3 +1,33 @@
+## 0.2.0 - 2026-10-03
+- Fáze 2 (ZADANI_FAZE_2.md, revize R2 specu). Lab dál jen čte, nic nezapisuje.
+- Opravy fáze 1:
+  - Kontrola 11: jmenovatel = všechny targety (dřív jen ty s maxFavorableTicks, takže
+    se ptala sama sebe a vždy prošla).
+  - Prognóza „kdy budu mít vzorek" pro každou analýzu zvlášť, s tím, co jí chybí;
+    zvýrazněné úzké hrdlo (dnes plánovaný cíl s cenou).
+  - Fill rate: pod 10 NO_FILL n/a s důvodem; nad 20 záznamů a > 90 % varování
+    „Fill rate je nezvykle vysoký — zapisuješ všechny nenaplněné limitky?".
+  - Hlavička na každé obrazovce: který deník, kolik záznamů, rozsah dat, co se počítá.
+  - app/labels.js – vlastní popisky klíčů z výchozích slovníků deníku; neznámé klíče
+    se ukazují tak, jak přišly, a zdraví dat je hlásí.
+  - Úplnost polí podle missingContextKeys deníku (R2.6), dopočtené hodnoty zvlášť.
+  - Blok „Obchody, které bych naživo nevzal" s expectancy bez nich / s nimi (R2.5).
+- Normalizace (R2.1–R2.4): původ MFE/MAE (nt8 / ručně / dopočteno), do výpočtů jen
+  naměřené; „žádná hladina" ze dvou zápisů jako jeden stav none / present / unknown;
+  plánovaný cíl bez MANUAL_EXIT a bez ceny převzaté z výstupu; plannedRMultiple;
+  vzdálenost SR hladiny ze zapsaných ticků nebo přesného přepočtu ceny.
+- Nová obrazovka „SL a TP": verdikt ke každému obchodu jednou větou (rezerva SL,
+  o kolik dál by SL stačil, kam se cena vrátila, co zůstalo na stole, plán vs.
+  skutečnost), MAE vítězů (p50/p75/p90/max), MFE stopnutých (dosažitelnost TP v ticích
+  i v R), SL sweep s počtem obchodů nad pozorovaným rozsahem, mřížka SL × TP se
+  stabilní oblastí, maximem buňky a povinným varováním o vzorku.
+- Nová obrazovka „Síla hladin": netestovaná / zastavila / propadla s nastavitelnou
+  tolerancí, tabulka po typech hladin (pod 3 bez procent, pod 5 šedě), kontrolní
+  skupina žádná hladina vs. hladina (nevyplněné nevstupují), nahoře co chybí.
+- Testy: 96, ověřené mutacemi (dopočtené jako naměřené, unknown = none, netestovaná
+  hladina v síle, MANUAL_EXIT jako plán, starý jmenovatel kontroly 11, sweep bez
+  označení rozsahu, zápis mimo writeViews – každá mutace shodí aspoň jeden test).
+
 ## 0.1.0 - 2026-09-29
 - Nový projekt Backtest Lab – fáze 1 „Zdraví dat" (jedna obrazovka). Lab je read-only:
   čte %APPDATA%\futures-journal-pro\ai-export\*.json (respektuje customDataDir deníku,

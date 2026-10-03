@@ -1,39 +1,39 @@
 'use strict';
-// Zdraví dat – fáze 1. Odpovídá na „sbírám použitelná data?", ne na „vydělává
+// Zdraví dat. Odpovídá na „sbírám použitelná data?", ne na „vydělává
 // strategie?". Pracuje VÝHRADNĚ s výstupem LabNormalize.normalizeRecord;
 // žádnou vlastní normalizaci ani čtení `raw` pro výpočty tu nedělej.
 //
 // Množiny záznamů:
-//   trades  – TRADE záznamy (SETUP_ONLY nikdy)
-//   perf    – výkonový vzorek: trades bez legacyPointsConvention a bez
-//             obchodů „naživo bych nevzal" (pokud je přepínač nezapne)
+//   trades   – TRADE záznamy (SETUP_ONLY nikdy)
+//   perf     – výkonový vzorek: trades bez legacyPointsConvention a bez
+//              obchodů „naživo bych nevzal" (pokud je přepínač nezapne) –
+//              stejně jako performanceRecords() v deníku
 //   fillBase – TRADE i SETUP_ONLY bez legacy, VČETNĚ „naživo bych nevzal":
-//             naplnění limitky je mechanika vstupu, ne rozhodnutí o obchodu
+//              naplnění limitky je mechanika vstupu, ne rozhodnutí o obchodu
 
 (function (root, factory) {
-  const normalize = (typeof module !== 'undefined' && module.exports)
-    ? require('./normalize.js')
-    : root.LabNormalize;
-  const api = factory(normalize);
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  const isNode = typeof module !== 'undefined' && module.exports;
+  const normalize = isNode ? require('./normalize.js') : root.LabNormalize;
+  const labels = isNode ? require('./labels.js') : root.LabLabels;
+  const api = factory(normalize, labels);
+  if (isNode) module.exports = api;
   if (root) root.LabHealth = api;
-}(typeof globalThis !== 'undefined' ? globalThis : this, function (N) {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (N, L) {
 
   const USABLE_GOAL = 50;
   const SL_TICKS_MAX = 40;                 // stejná hranice jako v deníku (points.js)
   const R_TOLERANCE = 0.01;
   const DUPLICATE_WINDOW_MIN = 5;
+  // Fill rate: pod tímhle počtem nenaplněných záznamů (NO_FILL) není fill
+  // rate statistika – jmenovatel ze dvou NO_FILL vyrobí číslo, které jen
+  // vypadá jako údaj.
   const FILL_WARN_MIN_RECORDS = 10;
+  const FILL_HIGH_RATE = 0.90;
+  const FILL_HIGH_MIN_RECORDS = 20;
   const NO_OBSERVATION_WARN_SHARE = 0.30;  // kontrola 11
   const SELECTIVE_WARN_PP = 25;            // kontrola 12, procentní body
   const WINDOW_SPREAD_FACTOR = 4;          // kontrola 13
   const FORECAST_GOALS = [50, 100];
-
-  // Pole zvýrazněná v úplnosti – ukážou se i tehdy, když je nemá žádný obchod.
-  const HIGHLIGHT_FIELDS = ['setupCode', 'slPrice', 'maeTicks', 'postExitFavorableTicks', 'targetLevel1'];
-  // touchedEntry / touchedSl deník u stoplossu záměrně nevyplňuje (u stopnutého
-  // obchodu jsou degenerované) – úplnost se jim měří jen mimo stoploss.
-  const NOT_FOR_STOPLOSS = new Set(['touchedEntry', 'touchedSl']);
 
   // P/L pole, která SETUP_ONLY nesmí mít (kontrola 10).
   const PNL_FIELDS = ['pnl', 'pnlRaw', 'grossPnl', 'result', 'exitPrice', 'points', 'pointsTotal', 'pointsPerContract', 'exitTicks'];
@@ -76,6 +76,32 @@
     });
   }
 
+  // Obchodní dny výkonového vzorku – jmenovatel tempa v prognóze.
+  function tradingDays(perf) {
+    return new Set(perf.map(r => r.date).filter(Boolean)).size;
+  }
+
+  function dateRange(records) {
+    const dates = records.map(r => r.date).filter(Boolean).sort();
+    return dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null;
+  }
+
+  // ------------------------------------------------------------- fill rate
+
+  // Jediný výpočet fill rate – sdílí ho řádek použitelnosti i kontrola 9.
+  function fillStats(fillBase) {
+    const filled = fillBase.filter(r => r.fillStatus === 'FILLED').length;
+    const noFill = fillBase.filter(r => r.fillStatus === 'NO_FILL').length;
+    const n = filled + noFill;
+    const enough = noFill >= FILL_WARN_MIN_RECORDS;
+    return {
+      filled, noFill, n,
+      rate: enough && n ? filled / n : null,
+      enough,
+      reason: enough ? null : `Nenaplněných záznamů (NO_FILL) je ${noFill}, méně než ${FILL_WARN_MIN_RECORDS} – fill rate by z nich nebyl statistika.`
+    };
+  }
+
   // ------------------------------------------------------------- A) vzorek
 
   function sampleOverview(sets) {
@@ -100,81 +126,140 @@
       skipLive: sets.skipLive.length,
       hasSkipLiveField: sets.all.some(r => r.hasWouldSkipLiveField),
       perf: sets.perf.length,
+      range: dateRange(sets.all),
       days: [...days.values()].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
     };
   }
 
-  function usabilityRow(key, label, usable, base, extra = {}) {
-    const n = usable.length;
-    return { key, label, n, m: base.length, missing: Math.max(0, USABLE_GOAL - n), ...extra };
+  // Řádky SR hladin s hladinou (bez 'NONE') napříč obchody.
+  function levelRows(perf, field) {
+    const out = [];
+    for (const r of perf) for (const row of r[field]) if (!row.isNone) out.push({ record: r, row });
+    return out;
   }
 
+  function usabilityRow(key, label, n, m, extra = {}) {
+    return { key, label, n, m, missing: Math.max(0, USABLE_GOAL - n), unit: 'obchodů', ...extra };
+  }
+
+  // Použitelnost pro analýzy fáze 2. U každé: kolik jich unese, z kolika
+  // a co konkrétně chybí.
   function usability(sets) {
     const p = sets.perf;
-    const rStat = p.filter(r => has(r.slTicks) && has(r.exitTicks));
-    const sweep = p.filter(r => has(r.maxAdverseTicks));
-    const reach = p.filter(r => has(r.maxFavorableTicks) && has(r.slTicks));
-    const grid = p.filter(r => has(r.maxAdverseTicks) && has(r.maxFavorableTicks) && has(r.slTicks));
-    const levels = p.filter(r => r.targetLevel1 && has(r.targetLevel1.type));
-    const obstacles = p.filter(r => r.srTarget.length > 0);
-    const obstaclesHavePlace = p.some(r => r.srTarget.some(N.levelRowHasPlace));
-
-    const fillKnown = sets.fillBase.filter(r => r.fillStatus === 'FILLED' || r.fillStatus === 'NO_FILL');
-    const filled = fillKnown.filter(r => r.fillStatus === 'FILLED').length;
-    const noFill = fillKnown.length - filled;
-    const fillUsable = noFill > 0 ? fillKnown : [];
+    const count = (base, test) => base.filter(test).length;
+    const winners = p.filter(r => r.isProfitable === true);
+    const stopped = p.filter(r => r.isStopped);
+    const tRows = levelRows(p, 'srTarget');
+    const sRows = levelRows(p, 'srStopLoss');
+    const states = { none: 0, present: 0, unknown: 0 };
+    for (const r of p) states[r.srTargetState]++;
+    const fill = fillStats(sets.fillBase);
 
     return [
-      usabilityRow('r', 'R statistika', rStat, p, { needs: 'slTicks a exitTicks' }),
-      usabilityRow('slSweep', 'SL sweep', sweep, p, { needs: 'maxAdverseTicks' }),
-      usabilityRow('tpReach', 'Dosažitelnost TP', reach, p, { needs: 'maxFavorableTicks a slTicks' }),
-      usabilityRow('grid', 'Mřížka SL × TP', grid, p, { needs: 'maxAdverseTicks, maxFavorableTicks a slTicks současně' }),
-      usabilityRow('targetLevels', 'Cílové hladiny', levels, p, { needs: 'targetLevel1.type' }),
-      usabilityRow('obstacles', 'Překážky', obstacles, p, {
-        needs: 'srTarget neprázdné',
-        note: obstaclesHavePlace ? null : 'Bez cen u srTarget nejde spočítat vzdálenost překážky od cíle (§5.4d).'
-      }),
-      usabilityRow('fillRate', 'Fill rate', fillUsable, sets.fillBase, {
-        needs: 'FILLED / NO_FILL záznamy, aspoň jeden NO_FILL',
-        note: noFill === 0 ? 'Žádný NO_FILL záznam – fill rate zatím nejde spočítat.' : null,
-        rate: fillKnown.length ? filled / fillKnown.length : null,
-        filled, noFill
-      })
+      usabilityRow('r', 'R statistika', count(p, r => has(r.slTicks) && has(r.exitTicks)), p.length,
+        { needs: 'slTicks a exitTicks', lacks: 'cena SL' }),
+      usabilityRow('maeWinners', 'MAE vítězů → šířka SL', count(winners, r => has(r.maeMeasured)), winners.length,
+        { needs: 'ziskové obchody s naměřeným MAE', lacks: 'naměřené MAE (NT8 nebo ručně; dopočtené se nepočítá)' }),
+      usabilityRow('mfeStopped', 'MFE stopnutých → dosažitelnost TP', count(stopped, r => has(r.mfeMeasured)), stopped.length,
+        { needs: 'stopnuté obchody s naměřeným MFE', lacks: 'naměřené MFE' }),
+      usabilityRow('slSweep', 'SL sweep', count(p, r => has(r.slSweepAdverse)), p.length,
+        { needs: 'naměřený protipohyb (u stopnutých i za stopkou)', lacks: 'naměřené MAE / protipohyb po výstupu' }),
+      usabilityRow('grid', 'Mřížka SL × TP', count(p, r => has(r.maxAdverseMeasured) && has(r.maxFavorableMeasured) && has(r.exitTicks)), p.length,
+        { needs: 'naměřené maximum proti i ve směru', lacks: 'naměřené MFE / pokračování po výstupu' }),
+      usabilityRow('plannedTarget', 'Plánovaný cíl (§5.4a, c)', count(p, r => r.plannedTarget && has(r.plannedTarget.price)), p.length,
+        { needs: 'cílová hladina s cenou – ne MANUAL_EXIT, ne cena převzatá z výstupu', lacks: 'plánovaná cílová hladina s cenou' }),
+      usabilityRow('levelsTarget', 'Síla hladin proti TP', tRows.filter(x => has(x.row.distanceTicks) && has(x.record.mfeMeasured)).length, tRows.length,
+        { unit: 'řádků', needs: 'SR řádek s cenou nebo vzdáleností + naměřené MFE', lacks: 'cena / vzdálenost SR hladiny od vstupu' }),
+      usabilityRow('levelsSl', 'Síla hladin proti SL', sRows.filter(x => has(x.row.distanceTicks) && has(x.record.maeMeasured)).length, sRows.length,
+        { unit: 'řádků', needs: 'SR řádek s cenou nebo vzdáleností + naměřené MAE', lacks: 'cena / vzdálenost SR hladiny od vstupu' }),
+      usabilityRow('controlGroup', 'Kontrolní skupina hladin', Math.min(states.none, states.present), p.length,
+        { needs: 'obchody s vědomě „žádná hladina“ i s hladinou proti TP', lacks: 'vyplněné „žádná hladina v cestě“',
+          note: `žádná hladina ${states.none} · hladina ${states.present} · nevyplněno ${states.unknown} (do porovnání nevstupuje)` }),
+      usabilityRow('fillRate', 'Fill rate', fill.enough ? fill.n : 0, sets.fillBase.length,
+        { needs: `FILLED / NO_FILL, aspoň ${FILL_WARN_MIN_RECORDS} NO_FILL`, lacks: 'zapsané nenaplněné limitky (NO_FILL)',
+          note: fill.reason, rate: fill.rate, filled: fill.filled, noFill: fill.noFill, forecast: false })
     ];
   }
 
   // ------------------------------------------------------------- B) úplnost
 
+  // Podle definice deníku (missingContextKeys, R2.6) nad všemi obchody ve
+  // výběru – stejný základ jako štítek „Neúplné" v deníku.
   function completeness(sets) {
-    const p = sets.perf;
-    const keys = new Set(HIGHLIGHT_FIELDS);
-    for (const r of p) for (const k of Object.keys(r.filled)) keys.add(k);
-    const rows = [];
-    for (const field of keys) {
-      const base = NOT_FOR_STOPLOSS.has(field) ? p.filter(r => r.result !== 'stoploss') : p;
-      const filled = base.filter(r => r.filled[field] === true).length;
-      rows.push({
+    const base = sets.trades;
+    const rows = N.CONTEXT_KEYS.map(field => {
+      const missing = base.filter(r => r.missingContext.includes(field)).length;
+      let derived = null;
+      if (field === 'mfeTicks') derived = base.filter(r => r.mfe.tier === 'derived').length;
+      if (field === 'maeTicks') derived = base.filter(r => r.mae.tier === 'derived').length;
+      if (field === 'slPrice') derived = base.filter(r => r.slDerived === true).length;
+      if (field === 'targetLevel1') derived = base.filter(r => r.targetLevel1 && (r.targetLevel1.type === 'MANUAL_EXIT' || r.targetLevel1PriceDerived)).length;
+      return {
         field,
-        filled,
+        label: L.fieldLabel(field),
+        filled: base.length - missing,
+        missing,
         total: base.length,
-        pct: base.length ? filled / base.length : null,
-        highlight: HIGHLIGHT_FIELDS.includes(field),
-        note: NOT_FOR_STOPLOSS.has(field) ? 'bez stoplossů (tam se záměrně nevyplňuje)' : null
-      });
-    }
-    rows.sort((a, b) => {
-      const pa = a.pct == null ? -1 : a.pct, pb = b.pct == null ? -1 : b.pct;
-      return pa - pb || a.field.localeCompare(b.field);
+        pct: base.length ? (base.length - missing) / base.length : null,
+        derived
+      };
     });
-    return rows;
+    rows.sort((a, b) => ((a.pct == null ? -1 : a.pct) - (b.pct == null ? -1 : b.pct)) || a.field.localeCompare(b.field));
+    return {
+      rows,
+      incomplete: base.filter(r => r.missingContext.length > 0).length,
+      total: base.length
+    };
+  }
+
+  function unknownKeys(sets) {
+    const items = [];
+    for (const r of sets.all) for (const u of r.unknownKeys) items.push({ record: r, field: u.field, key: u.key });
+    return items;
+  }
+
+  // ------------------------------------------------------------- naživo bych nevzal (R2.5)
+
+  // Zrcadlí computeSkipLiveStats v deníku: počítá se vždy, nezávisle na
+  // přepínači. P/L = pnlRaw targetů a stoplossů, expectancy = součet / počet.
+  function overall(rows) {
+    const wins = rows.filter(r => r.result === 'target');
+    const losses = rows.filter(r => r.result === 'stoploss');
+    const sum = list => list.reduce((a, r) => a + (r.pnlRaw || 0), 0);
+    const pnl = sum(wins) + sum(losses);
+    const rs = rows.map(r => r.rSigned).filter(has);
+    return {
+      count: rows.length,
+      pnl,
+      winRate: wins.length + losses.length ? wins.length / (wins.length + losses.length) : null,
+      expectancy: rows.length ? pnl / rows.length : null,
+      expectancyR: rs.length ? rs.reduce((a, v) => a + v, 0) / rs.length : null,
+      rCount: rs.length
+    };
+  }
+
+  function skipLiveStats(sets) {
+    const all = sets.trades.filter(r => !r.isLegacy);
+    const group = all.filter(r => r.wouldSkipLive);
+    const byReason = new Map();
+    for (const r of group) {
+      const key = r.wouldSkipReason || '';
+      if (!byReason.has(key)) byReason.set(key, []);
+      byReason.get(key).push(r);
+    }
+    return {
+      ...overall(group),
+      without: overall(all.filter(r => !r.wouldSkipLive)),
+      with: overall(all),
+      byReason: [...byReason.entries()].map(([key, rows]) => ({ key, label: key ? L.labelOf('SKIP_REASON', key) : '(bez důvodu)', ...overall(rows) }))
+        .sort((a, b) => b.count - a.count)
+    };
   }
 
   // ------------------------------------------------------------- C) kontroly
 
   function item(r, detail) { return { record: r, detail }; }
 
-  // Kontrola nad podmnožinou: `applies` vybere záznamy, `fails` vrátí text
-  // selhání nebo null.
   function simpleCheck(id, title, base, applies, fails, statusOnFail = 'fail') {
     const relevant = base.filter(applies);
     const items = [];
@@ -196,8 +281,7 @@
       if (!byKey.has(key)) byKey.set(key, []);
       byKey.get(key).push(r);
     }
-    // Každý podezřelý záznam jednou, se všemi dřívějšími shodami (trojice ve
-    // stejné minutě = dva řádky, ne tři páry).
+    // Každý podezřelý záznam jednou, se všemi dřívějšími shodami.
     const items = [];
     for (const group of byKey.values()) {
       group.sort((a, b) => a.entryMinutes - b.entryMinutes);
@@ -218,15 +302,15 @@
     };
   }
 
-  function checkFillAllFilled(fillBase) {
-    const known = fillBase.filter(r => r.fillStatus);
-    const allFilled = known.length > 0 && known.every(r => r.fillStatus === 'FILLED');
-    const base = { id: 9, title: 'fillStatus není 100 % FILLED', checked: known.length, items: [] };
-    if (known.length <= FILL_WARN_MIN_RECORDS) return { ...base, status: 'na', summary: `jen ${known.length} záznamů s fillStatus (hranice je víc než ${FILL_WARN_MIN_RECORDS})` };
-    if (allFilled) return { ...base, status: 'warn', summary: `všech ${known.length} je FILLED – nezaznamenané NO_FILL setupy zkreslí statistiku jen na přeživší` };
-    const counts = {};
-    for (const r of known) counts[r.fillStatus] = (counts[r.fillStatus] || 0) + 1;
-    return { ...base, status: 'pass', summary: Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(' · ') };
+  function checkFillRate(fillBase) {
+    const f = fillStats(fillBase);
+    const base = { id: 9, title: 'Fill rate není nezvykle vysoký', checked: f.n, items: [], fill: f };
+    if (!f.enough) return { ...base, status: 'na', summary: f.reason };
+    const pctText = `${Math.round(f.rate * 100)} % (${f.filled} FILLED / ${f.noFill} NO_FILL)`;
+    if (f.n > FILL_HIGH_MIN_RECORDS && f.rate > FILL_HIGH_RATE) {
+      return { ...base, status: 'warn', summary: pctText, message: 'Fill rate je nezvykle vysoký — zapisuješ všechny nenaplněné limitky?' };
+    }
+    return { ...base, status: 'pass', summary: pctText };
   }
 
   function checkSetupsOutOfPnl(sets) {
@@ -247,22 +331,25 @@
   }
 
   // 11 – zkreslení mřížky chybějícím pozorováním. Chybí = postExitFavorableTicks
-  // prázdné. NULA JE PLATNÉ MĚŘENÍ („dál už nic nebylo", maxFavorableTicks pak
-  // vyjde rovno exitTicks) a za chybějící pozorování se NEpovažuje.
+  // prázdné. NULA JE PLATNÉ MĚŘENÍ („dál už nic nebylo") a za chybějící
+  // pozorování se NEpovažuje.
   function isWithoutObservation(r) {
     return r.postExitFavorableTicks == null;
   }
 
   function checkMissingObservation(perf) {
-    const base = perf.filter(r => r.result === 'target' && has(r.maxFavorableTicks));
+    // Jmenovatel = VŠECHNY targety. Podmínka na maxFavorableTicks by vyřadila
+    // právě obchody bez pozorování (maxFavorable je z pozorování dopočtené)
+    // a kontrola by se ptala sama sebe.
+    const base = perf.filter(r => r.result === 'target');
     const missing = base.filter(isWithoutObservation);
     const share = base.length ? missing.length / base.length : null;
     const status = !base.length ? 'na' : share > NO_OBSERVATION_WARN_SHARE ? 'warn' : 'pass';
     return {
       id: 11, title: 'Zkreslení mřížky chybějícím pozorováním po výstupu',
       status, checked: base.length, share, missing: missing.length,
-      items: missing.map(r => item(r, `target, maxFavorableTicks ${fmt(r.maxFavorableTicks)}, exitTicks ${fmt(r.exitTicks)}, postExitFavorableTicks prázdné`)),
-      summary: base.length ? `${missing.length} z ${base.length} (${Math.round(share * 100)} %) bez pozorování` : 'žádný target s maxFavorableTicks',
+      items: missing.map(r => item(r, `target, exitTicks ${fmt(r.exitTicks)}, postExitFavorableTicks prázdné`)),
+      summary: base.length ? `${missing.length} z ${base.length} (${Math.round(share * 100)} %) bez pozorování` : 'žádný target',
       message: status === 'warn'
         ? `U ${missing.length} obchodů chybí pozorování po výstupu. Ty nemohou rozlišit 'cíl byl optimální' od 'nikdo se nedíval dál' a v mřížce SL × TP budou systematicky hlasovat pro těsnější cíl.`
         : null
@@ -360,7 +447,7 @@
         r => r.isProfitable === true && !has(r.maeTicks) && has(r.maxAdverseTicks),
         r => (r.maxAdverseTicks === 0 ? 'maxAdverseTicks 0 bez naměřeného maeTicks' : null)),
       checkDuplicates(sets.trades),
-      checkFillAllFilled(sets.fillBase),
+      checkFillRate(sets.fillBase),
       checkSetupsOutOfPnl(sets),
       checkMissingObservation(p),
       checkSelectiveRecording(p),
@@ -368,22 +455,27 @@
     ];
   }
 
-  // ------------------------------------------------------------- D) odhad
+  // ------------------------------------------------------------- D) prognóza
 
+  // Prognóza pro KAŽDOU analýzu zvlášť, z jejího vlastního N. Hrdlo = ta
+  // s nejmenším N – ta blokuje a té se má zápis věnovat. Fill rate se
+  // neprognózuje (nevzniká z obchodů, ale ze zapsaných nenaplněných limitek).
   function forecast(sets, usabilityRows) {
-    const sweep = usabilityRows.find(r => r.key === 'slSweep');
-    const days = new Set(sets.perf.map(r => r.date).filter(Boolean)).size;
-    const perDay = days ? sweep.n / days : 0;
-    return {
-      usable: sweep.n,
-      days,
-      perDay,
-      goals: FORECAST_GOALS.map(goal => ({
-        goal,
-        remaining: Math.max(0, goal - sweep.n),
-        days: sweep.n >= goal ? 0 : perDay > 0 ? Math.ceil((goal - sweep.n) / perDay) : null
-      }))
-    };
+    const days = tradingDays(sets.perf);
+    const rows = usabilityRows.filter(u => u.forecast !== false).map(u => {
+      const perDay = days ? u.n / days : 0;
+      return {
+        key: u.key, label: u.label, n: u.n, unit: u.unit, lacks: u.lacks, perDay,
+        goals: FORECAST_GOALS.map(goal => ({
+          goal,
+          remaining: Math.max(0, goal - u.n),
+          days: u.n >= goal ? 0 : perDay > 0 ? Math.ceil((goal - u.n) / perDay) : null
+        }))
+      };
+    });
+    let bottleneck = null;
+    for (const row of rows) if (!bottleneck || row.n < bottleneck.n) bottleneck = row;
+    return { days, rows, bottleneck };
   }
 
   // ------------------------------------------------------------- celek
@@ -396,6 +488,8 @@
       sample: sampleOverview(sets),
       usability: usabilityRows,
       completeness: completeness(sets),
+      unknownKeys: unknownKeys(sets),
+      skipLive: skipLiveStats(sets),
       checks: checks(sets),
       forecast: forecast(sets, usabilityRows)
     };
@@ -404,12 +498,17 @@
   return {
     USABLE_GOAL,
     SL_TICKS_MAX,
+    FILL_WARN_MIN_RECORDS,
+    FILL_HIGH_RATE,
+    FILL_HIGH_MIN_RECORDS,
     NO_OBSERVATION_WARN_SHARE,
     SELECTIVE_WARN_PP,
     WINDOW_SPREAD_FACTOR,
-    HIGHLIGHT_FIELDS,
     partition,
     filterRecords,
+    tradingDays,
+    dateRange,
+    fillStats,
     isWithoutObservation,
     computeHealth
   };

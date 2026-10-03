@@ -1,7 +1,7 @@
 {
   "name": "backtest-lab",
-  "version": "0.2.0",
-  "description": "Backtest Lab 0.2.0 – zdraví dat, SL a TP, síla hladin z Futures Journal PRO (read-only).",
+  "version": "0.3.0",
+  "description": "Backtest Lab 0.3.0 – zdraví dat, SL a TP, síla hladin, denní risk z Futures Journal PRO (read-only).",
   "main": "main.js",
   "private": true,
   "scripts": {

@@ -52,7 +52,10 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
 - app/health.js – zdraví dat (A–D, kontroly 1–13, úplnost polí, neznámé klíče, blok „naživo bych nevzal")
 - app/sltp.js – fáze 2 „SL a TP": verdikt po obchodech, MAE vítězů, MFE stopnutých, SL sweep, mřížka
 - app/strength.js – fáze 2 „Síla hladin": klasifikace hladin, tabulka po typech, kontrolní skupina
-- app/ui.js (kostra) + ui-common/ui-health/ui-sltp/ui-levels.js + index.html
+- app/sequence.js – fáze 3 krok 1 „Denní risk": runs test, permutace nejdelší série ztrát,
+  podmíněný win rate, verdikt jednou větou
+- app/ui.js (kostra) + ui-common/ui-health/ui-sltp/ui-levels/ui-risk.js + index.html.
+  Obrazovka může vrátit screen.scope(ctx) → { n, note } pro hlavičku „Počítá se".
 
 ## Pravidla analýz (fáze 2)
 - Do výpočtů jen NAMĚŘENÉ MFE/MAE (tier nt8 / manual). Dopočtené se ukazují zvlášť.
@@ -65,9 +68,23 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
   jen ze zapsaných ticků nebo přesným přepočtem ceny přes velikost ticku.
 - 'unknown' (nevyplněno) nikdy nespadne do kontrolní skupiny 'none'.
 
+## Pravidla analýz (fáze 3 – PLAN_RISK_MANAGEMENT.md)
+- **Legacy obchody do sérií a USD VSTUPUJÍ** (rozhodnutí uživatele 3. 10.): výsledek
+  a pnlRaw u nich platí, nejistá je jen konvence bodů → do ničeho v R/bodech ne.
+  Bez nich má Phidias 1 jen 9 dnů místo 35. Počet legacy vždy vidět na obrazovce.
+- W = target, L = stoploss; breakeven / jiné ze sekvence vypadnou a jen se spočítají.
+- Runs test a permutace přes celou chronologickou sekvenci (tak sedí čísla v plánu §7);
+  podmíněný win rate uvnitř dne (série se na začátku dne nuluje).
+- „Naživo bych nevzal" zrcadlí deník (výchozí mimo). Backtest_1 −1,64 z plánu je S nimi.
+- `pnl` v exportu je ABSOLUTNÍ hodnota (vždy > 0) – znaménko nese jen `pnlRaw` (krok 2).
+
 ## Stav
 - Fáze 1 (Zdraví dat) + opravy (kontrola 11, prognóza z hrdla, práh fill rate) a fáze 2
   (SL a TP, Síla hladin) hotové na větvi test (0.2.0), čekají na ověření uživatelem.
+- Fáze 3 (PLAN_RISK_MANAGEMENT.md §9): krok 1 sekvenční analýza hotový na test (0.3.0),
+  čeká na potvrzení uživatele. Další: krok 2 simulátor dne (jedno pravidlo, jeden deník,
+  tabulka po dnech), 3 mřížka + leave-one-day-out + časové rozdělení, 4 dva deníky vedle sebe.
+  Výsledek kroku 1: Phidias 1 z = +0,47 (náhodné), Backtest_1 z = −0,83.
 - Stav dat 3. 10.: hrdlo = plánovaný cíl s cenou (4 obchody ve výkonovém vzorku),
   SR řádky s místem 10/21 (proti TP) a 13/30 (proti SL).
 - Fixtury z reálných dat (kdyby byly potřeba) patří do „Claude files/" (gitignore), ne do repa.

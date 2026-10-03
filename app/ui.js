@@ -2,7 +2,7 @@
 // Kostra okna: stav, postranní panel, navigace mezi obrazovkami a hlavička
 // „který deník, kolik záznamů, jaký rozsah dat" (zadání fáze 2 §0.4).
 // Data načítá hlavní proces, předzpracování dělá LabNormalize, výpočty
-// LabHealth / LabSlTp / LabStrength, vykreslení obrazovky LabScreens.*.
+// LabHealth / LabSlTp / LabStrength / LabSequence, vykreslení obrazovky LabScreens.*.
 
 (function () {
   const N = window.LabNormalize;
@@ -11,7 +11,7 @@
   const { esc, czDate } = UI;
   const api = window.labAPI;
   const $ = id => document.getElementById(id);
-  const SCREENS = ['health', 'sltp', 'levels'];
+  const SCREENS = ['health', 'sltp', 'levels', 'risk'];
 
   const state = {
     views: {},
@@ -167,7 +167,9 @@
   }
 
   // Vždy: který deník, kolik záznamů a jaký rozsah dat se počítá.
-  function headerStrip(filtered, sample) {
+  // Obrazovka, která počítá jinou množinu než výkonový vzorek (Denní risk
+  // bere i legacy obchody), ji vrátí ze screen.scope(ctx) → { n, note }.
+  function headerStrip(filtered, sample, scope) {
     const j = state.journal;
     const range = sample.range ? `${czDate(sample.range.from)} – ${czDate(sample.range.to)}` : 'bez dat';
     const filtersOn = filtered.length !== j.records.length;
@@ -176,7 +178,9 @@
       <div><span class="scope-label">Deník</span><b>${esc(j.name)}</b>${j.inIndex ? '' : ' <span class="pill warn">mimo index</span>'}</div>
       <div><span class="scope-label">Záznamů</span><b>${filtered.length}</b> <span class="muted">(${sample.trades} obchodů, ${sample.setups} setupů${filtersOn ? ` · filtr z ${j.records.length}` : ''})</span></div>
       <div><span class="scope-label">Rozsah dat</span><b>${esc(range)}</b></div>
-      <div><span class="scope-label">Počítá se</span><b>${sample.perf}</b> <span class="muted">obchodů${esc(skip)}</span></div>
+      <div><span class="scope-label">Počítá se</span>${scope
+        ? `<b>${scope.n}</b> <span class="muted">${esc(scope.note)}</span>`
+        : `<b>${sample.perf}</b> <span class="muted">obchodů${esc(skip)}</span>`}</div>
       <div class="muted scope-updated">export ${esc(formatUpdated(j.updatedAt))} · sleduje změny</div>
     </div>`;
   }
@@ -199,13 +203,14 @@
     const health = H.computeHealth(filtered, options);
     const perf = H.partition(filtered, options).perf;
     const ctx = { records: filtered, perf, health, views: state.views };
-    let body;
+    let body, scope = null;
     try {
       body = screen.render(ctx);
+      if (screen.scope) scope = screen.scope(ctx);
     } catch (err) {
       body = `<div class="error">Obrazovku nejde vykreslit: ${esc(err && err.message)}</div>`;
     }
-    content.innerHTML = errorBox + headerStrip(filtered, health.sample) + body;
+    content.innerHTML = errorBox + headerStrip(filtered, health.sample, scope) + body;
   }
 
   // ------------------------------------------------------------- události

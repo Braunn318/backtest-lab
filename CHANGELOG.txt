@@ -1,3 +1,25 @@
+## 0.3.0 - 2026-10-03 (rozpracováno – fáze 3, PLAN_RISK_MANAGEMENT.md)
+- Krok 1: sekvenční analýza (§4) – nová obrazovka „Denní risk“, app/sequence.js.
+  Lab dál jen čte, nic nezapisuje.
+  - Verdikt jednou větou nahoře: série v mezích náhody / ztráty se shlukují /
+    střídají se (|z| ≥ 1,96); pod 10 zisky nebo 10 ztrátami žádný verdikt.
+  - Runs test (Wald–Wolfowitz) přes celou chronologickou sekvenci, permutační
+    srovnání nejdelší série ztrát (10 000 zamíchání, pevný seed), podmíněný win rate
+    po 1/2/3 ztrátách a ziscích uvnitř dne (série se na začátku dne nuluje).
+  - W = target, L = stoploss; breakeven a jiné výsledky vypadnou a jen se spočítají.
+  - Legacy obchody do sérií VSTUPUJÍ (rozhodnutí uživatele 3. 10.: výsledek u nich
+    platí, nejistá je jen konvence bodů); obrazovka i hlavička ukazují kolik.
+    „Naživo bych nevzal“ zrcadlí deník (výchozí mimo, přepínač).
+  - Hlavička „Počítá se“ ukazuje množinu, kterou obrazovka opravdu počítá (screen.scope).
+  - Na datech: Phidias 1 129 W/L / 35 dnů, z = +0,47, nejdelší série ztrát 7
+    (náhoda ji vyrobí v 66 %) → náhodné. Backtest_1 48 W/L / 5 dnů, z = −0,83
+    (s „naživo bych nevzal“ 54 / −1,64, mírný náznak, neprůkazné).
+- Testy: 108 (+12), ověřené mutacemi – 16 mutací (znaménko z, vzorec σ², breakeven
+  jako ztráta, vyřazení legacy, ignorovaný přepínač, SETUP_ONLY v sekvenci, bez řazení,
+  > místo ≥ v permutaci, bez míchání, bez nulování série na začátku dne, „po k“ jako
+  přesně k, procenta pod 3, verdikt bez pojistky vzorku, runs test bez pojistky 10/10,
+  práh 1 místo 1,96, require('fs') v knihovně) – každá shodí aspoň jeden test.
+
 ## 0.2.0 - 2026-10-03
 - Fáze 2 (ZADANI_FAZE_2.md, revize R2 specu). Lab dál jen čte, nic nezapisuje.
 - Opravy fáze 1:

@@ -35,6 +35,14 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
 - wouldSkipLive / wouldSkipReason deník už zapisuje (6 obchodů). Výchozí stav
   i přepínač zrcadli podle performanceRecords() v deníku: mimo výkon,
   ve fill rate zůstávají.
+- Deník 4.7.3: TRADE (bez recordType) s fillStatus NO_FILL / MISSED / SKIPPED
+  a s výstupem i P/L = hypotetický výsledek („co by to udělalo"), ne exekuce.
+  normalize: hypotheticalGroup 'noFill' (NO_FILL, MISSED) / 'skipped' / null.
+  Do výkonu rozhoduje JEN LabNormalize.inPerformance (health partition
+  i sequenceBase) – výchozí stav mimo, includeNoFill / includeSkipped zvlášť,
+  nezávisle na includeSkipLive. isLiveEligible zůstává jen !wouldSkipLive.
+  V UI dva přepínače (views includeNoFill / includeSkipped); options pro
+  obrazovky staví jen LabHealth.includeOf(views) → ctx.options.
 - Úplnost polí ber podle FJTaxonomy.missingContextKeys v deníku.
   NEPŘEBÍREJ nastavení karet (FJ_tradeCards) – vypnutá karta je volba
   formuláře, pro analýzu chybí dál to, co chybí.
@@ -48,12 +56,16 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
 - app/labels.js – vlastní mapa klíč → popisek z VÝCHOZÍCH slovníků deníku (R2.7)
 - app/normalize.js – JEDINÉ předzpracování záznamu; analýzy čtou jen jeho výstup.
   Původ MFE/MAE (mfe/mae = {ticks, tier}), *Measured, maxFavorable/AdverseMeasured,
-  slSweepAdverse, stav hladin none/present/unknown, plannedTarget, missingContext, unknownKeys
+  slSweepAdverse, stav hladin none/present/unknown, plannedTarget, missingContext, unknownKeys,
+  hypotheticalGroup / isExecuted; inPerformance() = jediné pravidlo výkonového vzorku
 - app/health.js – zdraví dat (A–D, kontroly 1–13, úplnost polí, neznámé klíče, blok „naživo bych nevzal")
 - app/sltp.js – fáze 2 „SL a TP": verdikt po obchodech, MAE vítězů, MFE stopnutých, SL sweep, mřížka
 - app/strength.js – fáze 2 „Síla hladin": klasifikace hladin, tabulka po typech, kontrolní skupina
 - app/sequence.js – fáze 3 krok 1 „Denní risk": runs test, permutace nejdelší série ztrát,
-  podmíněný win rate, verdikt jednou větou
+  podmíněný win rate, verdikt jednou větou. sequenceBase = množina a pořadí obchodů pro celou fázi 3
+- app/daysim.js – fáze 3 krok 2: simulátor dne (pravidla, jednotka R, souhrn variant, po dnech)
+- app/variants.js – fáze 3 krok 3: mřížka variant (rodiny po jednom pravidle), leave-one-day-out,
+  časové rozdělení, stabilní oblast / osamělá / nespolehlivá, náhodné vynechání
 - app/ui.js (kostra) + ui-common/ui-health/ui-sltp/ui-levels/ui-risk.js + index.html.
   Obrazovka může vrátit screen.scope(ctx) → { n, note } pro hlavičku „Počítá se".
 
@@ -76,14 +88,21 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
 - Runs test a permutace přes celou chronologickou sekvenci (tak sedí čísla v plánu §7);
   podmíněný win rate uvnitř dne (série se na začátku dne nuluje).
 - „Naživo bych nevzal" zrcadlí deník (výchozí mimo). Backtest_1 −1,64 z plánu je S nimi.
-- `pnl` v exportu je ABSOLUTNÍ hodnota (vždy > 0) – znaménko nese jen `pnlRaw` (krok 2).
+- `pnl` v exportu je ABSOLUTNÍ hodnota (vždy > 0) – znaménko nese jen `pnlRaw`.
+- Simulátor: R obchodu = pnlRaw / (1 R v USD); 1 R = medián ztráty na SL (vč. komise),
+  přepsatelný. rMultiple nejde – legacy ho nemají. Varianta bez pravidla = přesně P/L deníku.
+- Phidias 1 míchá instrumenty (MES 134, FDXS 8, ES 1) – UI to hlásí, nic nefiltruje samo.
+- Mřížka: Lab NEVYBÍRÁ vítěze (§8.2) – žádné doporučení, řazení podle metriky ani zvýrazněné
+  maximum. Jen stabilní oblast (≥ 3 sousední hodnoty, projdou LOO, stejné znaménko), osamělá
+  kladná = šum, neprojde LOO = nespolehlivá. Pod 20 dny nic z toho, jen popis.
+- Při záporné expectancy každé ubírající pravidlo vyjde kladně → sloupec „Náhodné vynechání“.
 
 ## Stav
 - Fáze 1 (Zdraví dat) + opravy (kontrola 11, prognóza z hrdla, práh fill rate) a fáze 2
   (SL a TP, Síla hladin) hotové na větvi test (0.2.0), čekají na ověření uživatelem.
-- Fáze 3 (PLAN_RISK_MANAGEMENT.md §9): krok 1 sekvenční analýza hotový na test (0.3.0),
-  čeká na potvrzení uživatele. Další: krok 2 simulátor dne (jedno pravidlo, jeden deník,
-  tabulka po dnech), 3 mřížka + leave-one-day-out + časové rozdělení, 4 dva deníky vedle sebe.
+- Fáze 3 (PLAN_RISK_MANAGEMENT.md §9): krok 1 sekvenční analýza potvrzený a commitnutý;
+  krok 2 simulátor dne a krok 3 mřížka variant hotové v pracovním stromu na test (0.3.0),
+  necommitnuté, čekají na potvrzení. Další: 4 dva deníky vedle sebe (§8.1, nikdy nesčítat).
   Výsledek kroku 1: Phidias 1 z = +0,47 (náhodné), Backtest_1 z = −0,83.
 - Stav dat 3. 10.: hrdlo = plánovaný cíl s cenou (4 obchody ve výkonovém vzorku),
   SR řádky s místem 10/21 (proti TP) a 13/30 (proti SL).

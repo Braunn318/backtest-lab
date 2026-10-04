@@ -201,6 +201,71 @@ test('SETUP_ONLY ⇒ isTrade false; bez recordType ⇒ TRADE', () => {
   assert.equal(t.isSetupOnly, false);
 });
 
+// Deník 4.7.3: nenaplněná limitka / vynechaný setup uložený jako celý obchod
+// s výstupem a P/L = „co by to udělalo". Hypotetický výsledek, ne exekuce.
+const hypo = over => N.normalizeRecord({
+  result: 'target', entryPrice: '7800', exitPrice: '7806', exitTicks: 24, rMultiple: 2, pnlRaw: 588.48, ...over
+});
+
+test('hypotetický obchod: NO_FILL a MISSED ⇒ noFill, SKIPPED ⇒ skipped', () => {
+  for (const [fillStatus, group] of [['NO_FILL', 'noFill'], ['MISSED', 'noFill'], ['SKIPPED', 'skipped']]) {
+    const r = hypo({ fillStatus });
+    assert.equal(r.hypotheticalGroup, group, fillStatus);
+    assert.equal(r.isHypothetical, true, fillStatus);
+    assert.equal(r.isTrade, true, `${fillStatus}: pořád TRADE (žádný recordType)`);
+    assert.equal(r.isExecuted, false, fillStatus);
+    assert.equal(r.pnlRaw, 588.48, `${fillStatus}: P/L se nezahodí, jen se neplete s exekucí`);
+    assert.equal(r.rSigned, 2);
+  }
+});
+
+test('hypotetický obchod: FILLED a prázdný fillStatus = skutečná exekuce', () => {
+  for (const fillStatus of ['FILLED', '', null, undefined]) {
+    const r = hypo({ fillStatus });
+    assert.equal(r.hypotheticalGroup, null, String(fillStatus));
+    assert.equal(r.isHypothetical, false);
+    assert.equal(r.isExecuted, true);
+  }
+});
+
+test('hypotetický obchod: isLiveEligible se nemění – „naživo bych nevzal" je jiná skupina', () => {
+  assert.equal(hypo({ fillStatus: 'NO_FILL' }).isLiveEligible, true);
+  const both = hypo({ fillStatus: 'SKIPPED', wouldSkipLive: true });
+  assert.equal(both.isLiveEligible, false);
+  assert.equal(both.hypotheticalGroup, 'skipped');
+});
+
+test('SETUP_ONLY s NO_FILL / SKIPPED zůstává setupem, ne hypotetickým obchodem', () => {
+  for (const fillStatus of ['NO_FILL', 'MISSED', 'SKIPPED']) {
+    const s = N.normalizeRecord({ recordType: 'SETUP_ONLY', fillStatus });
+    assert.equal(s.isSetupOnly, true);
+    assert.equal(s.isTrade, false);
+    assert.equal(s.hypotheticalGroup, null);
+    assert.equal(s.isHypothetical, false);
+    assert.equal(s.isExecuted, false);
+  }
+});
+
+test('inPerformance: hypotetické a „naživo bych nevzal" mimo, každá skupina se zapíná zvlášť', () => {
+  const filled = hypo({ fillStatus: 'FILLED' });
+  const noFill = hypo({ fillStatus: 'NO_FILL' });
+  const missed = hypo({ fillStatus: 'MISSED' });
+  const skipped = hypo({ fillStatus: 'SKIPPED' });
+  const skipLive = hypo({ fillStatus: 'FILLED', wouldSkipLive: true });
+  const setupRec = N.normalizeRecord({ recordType: 'SETUP_ONLY', fillStatus: 'NO_FILL' });
+  const inPerf = opts => [filled, noFill, missed, skipped, skipLive, setupRec].map(r => N.inPerformance(r, opts));
+  assert.deepEqual(inPerf(), [true, false, false, false, false, false]);
+  assert.deepEqual(inPerf({ includeNoFill: true }), [true, true, true, false, false, false]);
+  assert.deepEqual(inPerf({ includeSkipped: true }), [true, false, false, true, false, false]);
+  assert.deepEqual(inPerf({ includeSkipLive: true }), [true, false, false, false, true, false],
+    'přepínač „naživo bych nevzal" nevrátí hypotetické');
+  assert.deepEqual(inPerf({ includeSkipLive: true, includeNoFill: true, includeSkipped: true }), [true, true, true, true, true, false],
+    'SETUP_ONLY nikdy');
+  const bothFlags = hypo({ fillStatus: 'SKIPPED', wouldSkipLive: true });
+  assert.equal(N.inPerformance(bothFlags, { includeSkipped: true }), false, 'v obou skupinách ⇒ musí být zapnuté obě');
+  assert.equal(N.inPerformance(bothFlags, { includeSkipped: true, includeSkipLive: true }), true);
+});
+
 test('legacyPointsConvention se převezme jako isLegacy', () => {
   assert.equal(N.normalizeRecord({ legacyPointsConvention: true }).isLegacy, true);
   assert.equal(N.normalizeRecord({}).isLegacy, false);

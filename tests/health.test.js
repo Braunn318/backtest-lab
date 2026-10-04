@@ -121,6 +121,50 @@ test('wouldSkipLive: blok „bez nich / s nimi" se počítá bez ohledu na přep
   }
 });
 
+// ---------------------------------------------------------------- hypotetické (deník 4.7.3)
+
+test('hypotetické obchody (no fill / vynechané) mimo výkon, NO_FILL zůstává ve fill rate', () => {
+  const raws = [
+    trade(),
+    trade({ fillStatus: 'NO_FILL' }),
+    stop({ fillStatus: 'MISSED' }),
+    trade({ fillStatus: 'SKIPPED' }),
+    ...many(9, setup)
+  ];
+  const h = health(raws);
+  assert.equal(h.sample.trades, 4);
+  assert.equal(h.sample.noFill, 2);
+  assert.equal(h.sample.skipped, 1);
+  assert.equal(h.sample.perf, 1);
+  assert.equal(usable(h, 'r').n, 1);
+  assert.equal(usable(h, 'fillRate').n, 11, 'fill rate: 1 FILLED + 10 NO_FILL (9 setupů + 1 hypotetický obchod)');
+  assert.equal(health(raws, { includeNoFill: true }).sample.perf, 3);
+  assert.equal(health(raws, { includeSkipped: true }).sample.perf, 2);
+  assert.equal(health(raws, { includeSkipLive: true }).sample.perf, 1, 'přepínač „naživo bych nevzal" je nevrátí');
+});
+
+test('includeOf: přepínače z uložených pohledů, ostatní klíče se zahodí, chybějící = vypnuto', () => {
+  assert.deepEqual(H.includeOf({ includeNoFill: true, instrument: 'ES', dateFrom: '2026-08-01' }),
+    { includeSkipLive: false, includeNoFill: true, includeSkipped: false });
+  assert.deepEqual(H.includeOf(), { includeSkipLive: false, includeNoFill: false, includeSkipped: false });
+  const h = health([trade(), trade({ fillStatus: 'SKIPPED' })], H.includeOf({ includeSkipped: true }));
+  assert.equal(h.sample.perf, 2);
+  assert.equal(h.options.includeSkipped, true, 'obrazovka čte stav přepínače z výsledku');
+});
+
+test('blok „naživo bych nevzal": srovnání bez nich / s nimi nepočítá hypotetické výsledky', () => {
+  const raws = [
+    trade({ pnlRaw: 100 }), stop({ pnlRaw: -50 }),
+    stop({ wouldSkipLive: true, wouldSkipReason: 'SR_IN_WAY', pnlRaw: -60 }),
+    trade({ fillStatus: 'NO_FILL', pnlRaw: 900 })
+  ];
+  const s = health(raws).skipLive;
+  assert.equal(s.count, 1);
+  assert.equal(s.without.expectancy, 25);
+  assert.equal(s.with.expectancy, -10 / 3);
+  assert.equal(health(raws, { includeNoFill: true }).skipLive.without.count, 3, 'zapnutý no fill platí i tady');
+});
+
 // ---------------------------------------------------------------- B) úplnost
 
 test('úplnost: podle missingContextKeys deníku, od nejhoršího', () => {

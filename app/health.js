@@ -5,9 +5,10 @@
 //
 // Množiny záznamů:
 //   trades   – TRADE záznamy (SETUP_ONLY nikdy)
-//   perf     – výkonový vzorek: trades bez legacyPointsConvention a bez
-//              obchodů „naživo bych nevzal" (pokud je přepínač nezapne) –
-//              stejně jako performanceRecords() v deníku
+//   perf     – výkonový vzorek: trades bez legacyPointsConvention, bez
+//              obchodů „naživo bych nevzal" a bez hypotetických výsledků
+//              (no fill / vědomě vynechané), pokud je přepínače nezapnou –
+//              LabNormalize.inPerformance, stejně jako performanceRecords() v deníku
 //   fillBase – TRADE i SETUP_ONLY bez legacy, VČETNĚ „naživo bych nevzal":
 //              naplnění limitky je mechanika vstupu, ne rozhodnutí o obchodu
 
@@ -42,20 +43,33 @@
 
   // ------------------------------------------------------------- množiny
 
-  function isPerformance(r, includeSkipLive) {
-    return r.isTrade && !r.isLegacy && (includeSkipLive || r.isLiveEligible);
+  function isPerformance(r, include) {
+    return !r.isLegacy && N.inPerformance(r, include);
+  }
+
+  // Přepínače skupin mimo výkon – výchozí stav všechny vypnuté. Bere options
+  // i uložené pohledy (stejné klíče) – UI z nich staví options pro všechny obrazovky.
+  function includeOf(options = {}) {
+    return {
+      includeSkipLive: !!options.includeSkipLive,
+      includeNoFill: !!options.includeNoFill,
+      includeSkipped: !!options.includeSkipped
+    };
   }
 
   function partition(records, options = {}) {
-    const includeSkipLive = !!options.includeSkipLive;
+    const include = includeOf(options);
     const trades = records.filter(r => r.isTrade);
     return {
       all: records,
       trades,
+      include,
       setups: records.filter(r => r.isSetupOnly),
       legacy: trades.filter(r => r.isLegacy),
       skipLive: trades.filter(r => !r.isLegacy && r.wouldSkipLive),
-      perf: records.filter(r => isPerformance(r, includeSkipLive)),
+      noFill: trades.filter(r => !r.isLegacy && r.hypotheticalGroup === 'noFill'),
+      skipped: trades.filter(r => !r.isLegacy && r.hypotheticalGroup === 'skipped'),
+      perf: records.filter(r => isPerformance(r, include)),
       fillBase: records.filter(r => !r.isLegacy)
     };
   }
@@ -124,6 +138,8 @@
       setups: sets.setups.length,
       legacy: sets.legacy.length,
       skipLive: sets.skipLive.length,
+      noFill: sets.noFill.length,
+      skipped: sets.skipped.length,
       hasSkipLiveField: sets.all.some(r => r.hasWouldSkipLiveField),
       perf: sets.perf.length,
       range: dateRange(sets.all),
@@ -238,9 +254,11 @@
     };
   }
 
+  // Srovnání „bez nich / s nimi" přepíná jen „naživo bych nevzal"; ostatní
+  // přepínače (no fill, vynechané) platí – jako computeGroupStats v deníku.
   function skipLiveStats(sets) {
-    const all = sets.trades.filter(r => !r.isLegacy);
-    const group = all.filter(r => r.wouldSkipLive);
+    const all = sets.trades.filter(r => !r.isLegacy && N.inPerformance(r, { ...sets.include, includeSkipLive: true }));
+    const group = sets.skipLive;
     const byReason = new Map();
     for (const r of group) {
       const key = r.wouldSkipReason || '';
@@ -484,7 +502,7 @@
     const sets = partition(records, options);
     const usabilityRows = usability(sets);
     return {
-      options: { includeSkipLive: !!options.includeSkipLive },
+      options: sets.include,
       sample: sampleOverview(sets),
       usability: usabilityRows,
       completeness: completeness(sets),
@@ -505,6 +523,7 @@
     SELECTIVE_WARN_PP,
     WINDOW_SPREAD_FACTOR,
     partition,
+    includeOf,
     filterRecords,
     tradingDays,
     dateRange,

@@ -1,4 +1,79 @@
 ## 0.3.0 - 2026-10-03 (rozpracováno – fáze 3, PLAN_RISK_MANAGEMENT.md)
+- 2026-10-04: hypotetické obchody z deníku 4.7.3 (nenaplněná limitka nebo vědomě vynechaný
+  setup uložený jako celý obchod s výstupem a P/L – „co by to udělalo“) se už nepočítají
+  jako exekuce. Dřív měly isTrade i isLiveEligible = true a šly do všech analýz.
+  - normalizeRecord: nová pole hypotheticalGroup ('noFill' = NO_FILL / MISSED,
+    'skipped' = SKIPPED, null = FILLED / prázdné), isHypothetical, isExecuted.
+    SETUP_ONLY skupinu nemá (beze změny). isLiveEligible se nemění – „naživo bych nevzal“
+    je samostatná skupina s vlastním přepínačem, jako v deníku.
+  - LabNormalize.inPerformance(record, { includeSkipLive, includeNoFill, includeSkipped }):
+    jediné pravidlo výkonového vzorku (zrcadlí performanceRecords() deníku). Používá ho
+    zdraví dat (a přes perf SL a TP, síla hladin) i sequenceBase (sekvence, simulátor dne,
+    mřížka variant). Výchozí stav: hypotetické mimo; zapnout jde jen výslovně v options.
+  - Fill rate beze změny: hypotetický obchod s NO_FILL se počítá jako nenaplněný záznam.
+  - Blok „naživo bych nevzal“: srovnání bez nich / s nimi respektuje ostatní přepínače.
+  - UI: počet hypotetických (no fill / vynechané) v hlavičce, na Zdraví dat
+    a v rozsahu Denního risku – u každé skupiny „mimo výkon“ / „započítáno“.
+  - Přepínače v postranním panelu pod „naživo bych nevzal“, jako v deníku dva zvlášť:
+    „Včetně no fill obchodů (N)“ a „Včetně vědomě vynechaných (N)“. Výchozí stav vypnuto,
+    pamatují se (views.json: includeNoFill / includeSkipped). Bez takových obchodů
+    v deníku jsou zašedlé. Platí pro všechny obrazovky – options staví jediné
+    LabHealth.includeOf(views), Denní risk je bere z ctx.options.
+  - Na dnešních exportech žádný hypotetický obchod není – čísla se nemění.
+  - Testy: 139 (+9), ověřené 7 mutacemi (MISSED mimo noFill, SETUP_ONLY bez ochrany,
+    přepínače skupin, starý filtr v health / skipLiveStats / sequenceBase). Přepínače
+    proklikané v prohlížeči nad syntetickým deníkem (15 → 17 → 18 obchodů, Denní risk
+    se mění s nimi).
+
+- Krok 3: mřížka variant + ochrany proti přeoptimalizování (§5, §8.2) – app/variants.js,
+  sekce „Mřížka variant“ na obrazovce Denní risk.
+  - Každé pravidlo zvlášť přes řadu hodnot (SL za sebou 1–5, SL za den 2–6, max obchodů
+    2–8, ztrátový limit 1–5 R, vrácení zisku 1–4 R, denní cíl 2–8 R); kombinace víc
+    parametrů najednou se nehledají (spec §7). Kontrola „žádné pravidlo“ vždy nahoře.
+  - Ke každé variantě vedle sebe čistý přínos, max drawdown a nejhorší den. Žádný vítěz,
+    žádné řazení podle metriky, žádná zvýrazněná buňka s maximem.
+  - Leave-one-day-out: varianta přepočtená N× vždy bez jednoho DNE, rozsah čistého
+    přínosu (i drawdownu v tooltipu). Nespolehlivá = po vynechání kteréhokoli dne se
+    čistý přínos obrátí nebo zmizí (stojí na tom dni).
+  - Časové rozdělení: čistý přínos v první a druhé polovině dnů; „nedrží v čase“ při
+    rozdílném znaménku.
+  - Stabilní oblast = aspoň 3 sousední hodnoty, které projdou LOO, se stejným znaménkem
+    (přidává / ubírá); osamělá kladná varianta = šum.
+  - Pod 20 dny se nic z toho nehodnotí – jen co se stalo a kolik dnů chybí.
+  - Navíc sloupec „Náhodné vynechání“: −(průměr R na obchod) × nevzaté obchody. Při záporné
+    expectancy vyjde každé pravidlo, které ubírá obchody, kladně jen tím, že jich je míň.
+  - Na datech Phidias 1 (35 dnů): žádná stabilní oblast; „konec po 1. SL“ +11,5 R projde
+    LOO i časovým rozdělením, ale je osamělá (2× SL už −1,93 R) a náhodné vynechání
+    stejných 89 obchodů dá +5,17 R. Backtest_1 (5 dnů): chybí 15 dnů, jen popis.
+- Testy: 130 (+8), ověřené 15 mutacemi mřížky (LOO vynechá obchod / nic, nula po vynechání
+  projde, řez polovin, stabilní oblast od 2 / bez LOO / bez znaménka, značky pod 20 dny,
+  varianty seřazené podle přínosu, …).
+
+- Krok 2: simulátor dne (§1–§3) – app/daysim.js, sekce „Simulátor dne“ na obrazovce
+  Denní risk. Pravidlo nemění ceny, jen odřízne konec dne.
+  - Pravidla: denní ztrátový limit, max SL za sebou, max SL za den, max obchodů,
+    denní cíl, vrácení zisku od denního maxima (maximum začíná na 0). Kombinují se –
+    den končí u prvního, které zabere. Prázdné pole = vypnuto.
+  - „SL za sebou“ přeruší jakýkoli jiný výsledek, i breakeven.
+  - Počítá se v R, USD se zobrazuje. 1 R = medián ztráty obchodu na SL (pnlRaw
+    vč. komise), jde přepsat; velikost pozice mění jen přepočet na USD; velikost účtu
+    volitelná (drawdown a nejhorší den v % účtu). 1 R a pozice se při změně deníku
+    vrátí na výchozí. R z rMultiple nejde – legacy obchody ho nemají.
+  - Bez pravidla vs. pod pravidlem: P/L, max drawdown (po obchodech přes celé
+    období), nejhorší / nejlepší den, ziskové dny, utnuté dny, nevzaté obchody,
+    ušetřeno − zahozeno = čistý přínos; čistý přínos bez dvou nejvíc změněných dnů.
+  - Tabulka po dnech: sled W/L/B s vyznačeným koncem dne, skutečnost, pod pravidlem,
+    rozdíl, po kolikátém obchodu a proč.
+  - Deník s více instrumenty se hlásí (Phidias 1: MES 134 · FDXS 8 · ES 1 – jediný ES
+    obchod +363 USD nese nejlepší den); zúžit jde filtrem instrumentu.
+  - Tvrdé limity challenge připravené v konfiguraci (hardDailyLoss, trailingDrawdown,
+    prázdné = nepoužívá se, §8.3); v UI zatím nejsou.
+  - Na datech: Phidias 1 skutečnost −8,37 R (−220 USD) / 35 dnů; „konec po 2 SL za sebou“
+    ušetří 15,93 R a zahodí 17,86 R → čistý přínos −1,93 R (drawdown 15,25 → 12,58 R).
+- Testy: 122 (+14), ověřené 21 mutacemi simulátoru (pravidlo neutne / utne o obchod
+  dřív, vrácení zisku od nuly, čistý přínos jen z ušetřených, breakeven nepřeruší řadu,
+  drawdown po dnech, trailing jen v rámci dne, průměr místo mediánu u 1 R, …).
+
 - Krok 1: sekvenční analýza (§4) – nová obrazovka „Denní risk“, app/sequence.js.
   Lab dál jen čte, nic nezapisuje.
   - Verdikt jednou větou nahoře: série v mezích náhody / ztráty se shlukují /

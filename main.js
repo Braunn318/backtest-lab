@@ -24,9 +24,16 @@ app.setPath('userData', LAB_DIR);
 
 const VIEWS_FILE = path.join(LAB_DIR, 'views.json');
 // Co se o pohledu ukládá. Nic o obchodech.
-const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'showOutsideIndex', 'sourceDir', 'theme', 'screen', 'levelTolerance', 'sweepTargetR'];
-// Číselná nastavení analýz a jejich povolený rozsah.
-const VIEW_NUMBERS = { levelTolerance: [0, 20], sweepTargetR: [0.25, 10] };
+// Číselná nastavení analýz a jejich povolený rozsah. risk* = pravidlo
+// simulátoru dne (prázdné = vypnuté), jednotka R, velikost pozice a účtu.
+const VIEW_NUMBERS = {
+  levelTolerance: [0, 20], sweepTargetR: [0.25, 10],
+  riskDailyLoss: [0.1, 100], riskConsecutiveSL: [1, 50], riskDailySL: [1, 50], riskMaxTrades: [1, 100],
+  riskDailyTarget: [0.1, 100], riskGiveBack: [0.1, 100],
+  riskUnitUSD: [0.01, 1e6], riskPosition: [1, 1000], riskAccount: [1, 1e9]
+};
+const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex']);
+const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS)];
 
 let mainWindow = null;
 let watcher = null;
@@ -49,7 +56,7 @@ function sanitizeViews(input) {
   for (const key of VIEW_KEYS) {
     const v = src[key];
     if (v === undefined || v === null || v === '') continue;
-    if (key === 'includeSkipLive' || key === 'showOutsideIndex') out[key] = v === true;
+    if (BOOL_VIEWS.has(key)) out[key] = v === true;
     else if (VIEW_NUMBERS[key]) {
       const n = Number(v);
       const [min, max] = VIEW_NUMBERS[key];

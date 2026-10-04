@@ -150,6 +150,9 @@ details.check.nolist>summary{cursor:default}
 .sample{font-size:12px;font-weight:700;white-space:nowrap}
 .sample.ok{color:var(--muted)}.sample.warn{color:var(--yellow)}.sample.bad{color:var(--red)}
 tr.grey td{opacity:.55}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.net-line{border:1px solid var(--line);border-radius:10px;padding:10px 13px;line-height:1.6}
+.net-line.pos{border-color:rgba(var(--green-rgb),.5);color:var(--text)}.net-line.neg{border-color:rgba(var(--red-rgb),.5);color:var(--text)}
 .obs-warning{background:rgba(var(--yellow-rgb),.10);border:1px solid rgba(var(--yellow-rgb),.45);color:var(--text);border-radius:10px;padding:9px 12px;margin:0 0 12px;font-size:12.5px;line-height:1.45}
 td.above{color:var(--yellow);font-weight:800}
 .tier{display:inline-block;margin-left:4px;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
@@ -212,6 +215,9 @@ td.above{color:var(--yellow);font-weight:800}
     <div class="side-group">
       <label class="toggle" id="skipLiveToggle"><input type="checkbox" id="includeSkipLive"> <span>Včetně obchodů, které bych naživo nevzal</span></label>
       <div class="hint" id="skipLiveHint"></div>
+      <label class="toggle" id="noFillToggle" title="Nenaplněná limitka nebo nestihnutý setup vyplněný jako obchod (co by to udělalo). Ve výchozím stavu mimo výkon. Do fill rate patří vždy."><input type="checkbox" id="includeNoFill"> <span id="noFillLabel">Včetně no fill obchodů</span></label>
+      <label class="toggle" id="skippedToggle" title="Vědomě vynechaný setup vyplněný jako obchod (co by to udělalo). Ve výchozím stavu mimo výkon."><input type="checkbox" id="includeSkipped"> <span id="skippedLabel">Včetně vědomě vynechaných</span></label>
+      <div class="hint" id="hypotheticalHint"></div>
     </div>
 
     <div class="side-group" id="settingTargetR">
@@ -258,6 +264,8 @@ td.above{color:var(--yellow);font-weight:800}
 <script src="sltp.js"></script>
 <script src="strength.js"></script>
 <script src="sequence.js"></script>
+<script src="daysim.js"></script>
+<script src="variants.js"></script>
 <script src="ui-common.js"></script>
 <script src="ui-health.js"></script>
 <script src="ui-sltp.js"></script>

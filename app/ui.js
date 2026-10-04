@@ -144,6 +144,20 @@
       ? 'Jako v deníku: ve výchozím stavu mimo výkon, ve fill rate zůstávají vždy.'
       : 'Pole wouldSkipLive v datech není.';
 
+    // Hypotetické výsledky (deník 4.7.3) – každá skupina svůj přepínač jako v deníku.
+    // Počty z celého deníku bez filtrů pohledu, legacy se nepočítá (do výkonu nevstupuje).
+    const hypoCount = group => records.filter(r => !r.isLegacy && r.hypotheticalGroup === group).length;
+    const hypo = { noFill: hypoCount('noFill'), skipped: hypoCount('skipped') };
+    for (const [group, key] of [['noFill', 'includeNoFill'], ['skipped', 'includeSkipped']]) {
+      $(key).checked = !!state.views[key];
+      $(key).disabled = !hypo[group];
+      $(group + 'Toggle').classList.toggle('disabled', !hypo[group]);
+      $(group + 'Label').textContent = (group === 'noFill' ? 'Včetně no fill obchodů' : 'Včetně vědomě vynechaných') + ` (${hypo[group]})`;
+    }
+    $('hypotheticalHint').textContent = hypo.noFill || hypo.skipped
+      ? 'Hypotetický výsledek („co by to udělalo“), ne exekuce – jako v deníku ve výchozím stavu mimo výkon. No fill zůstávají ve fill rate vždy.'
+      : 'V deníku nejsou žádné no fill ani vědomě vynechané obchody vyplněné jako obchod.';
+
     $('levelTolerance').value = state.views.levelTolerance != null ? state.views.levelTolerance : window.LabStrength.DEFAULT_TOLERANCE;
     $('sweepTargetR').value = state.views.sweepTargetR != null ? state.views.sweepTargetR : 1;
     $('settingTolerance').style.display = screen === 'levels' ? '' : 'none';
@@ -173,7 +187,10 @@
     const j = state.journal;
     const range = sample.range ? `${czDate(sample.range.from)} – ${czDate(sample.range.to)}` : 'bez dat';
     const filtersOn = filtered.length !== j.records.length;
-    const skip = sample.skipLive ? ` · ${sample.skipLive} „naživo bych nevzal“ ${state.views.includeSkipLive ? 'započítáno' : 'mimo výkon'}` : '';
+    const group = (n, label, on) => (n ? ` · ${n} ${label} ${on ? 'započítáno' : 'mimo výkon'}` : '');
+    const skip = group(sample.skipLive, '„naživo bych nevzal“', state.views.includeSkipLive)
+      + group(sample.noFill, 'no fill (hypotetické)', state.views.includeNoFill)
+      + group(sample.skipped, 'vědomě vynechaných (hypotetické)', state.views.includeSkipped);
     return `<div class="scope">
       <div><span class="scope-label">Deník</span><b>${esc(j.name)}</b>${j.inIndex ? '' : ' <span class="pill warn">mimo index</span>'}</div>
       <div><span class="scope-label">Záznamů</span><b>${filtered.length}</b> <span class="muted">(${sample.trades} obchodů, ${sample.setups} setupů${filtersOn ? ` · filtr z ${j.records.length}` : ''})</span></div>
@@ -199,10 +216,10 @@
       return;
     }
     const filtered = H.filterRecords(state.journal.records, state.views);
-    const options = { includeSkipLive: !!state.views.includeSkipLive };
+    const options = H.includeOf(state.views);
     const health = H.computeHealth(filtered, options);
     const perf = H.partition(filtered, options).perf;
-    const ctx = { records: filtered, perf, health, views: state.views };
+    const ctx = { records: filtered, perf, health, views: state.views, options };
     let body, scope = null;
     try {
       body = screen.render(ctx);
@@ -223,7 +240,8 @@
     }));
     $('journalSelect').addEventListener('change', async e => {
       setView('journalId', e.target.value);
-      delete state.views.instrument; delete state.views.setupCode;
+      // Jednotka R a velikost pozice patří k deníku – u jiného by byly nesmysl.
+      for (const key of ['instrument', 'setupCode', 'riskUnitUSD', 'riskPosition']) delete state.views[key];
       await loadJournal(); render();
     });
     $('showOutsideIndex').addEventListener('change', async e => {
@@ -235,7 +253,9 @@
     $('dateReset').addEventListener('click', () => { setView('dateFrom', ''); setView('dateTo', ''); render(); });
     $('instrumentSelect').addEventListener('change', e => { setView('instrument', e.target.value); render(); });
     $('setupSelect').addEventListener('change', e => { setView('setupCode', e.target.value); render(); });
-    $('includeSkipLive').addEventListener('change', e => { setView('includeSkipLive', e.target.checked); render(); });
+    for (const key of ['includeSkipLive', 'includeNoFill', 'includeSkipped']) {
+      $(key).addEventListener('change', e => { setView(key, e.target.checked); render(); });
+    }
     $('levelTolerance').addEventListener('change', e => {
       const v = Number(e.target.value);
       setView('levelTolerance', Number.isFinite(v) && v >= 0 && v <= 20 ? v : undefined); render();
@@ -243,6 +263,15 @@
     $('sweepTargetR').addEventListener('change', e => {
       const v = Number(e.target.value);
       setView('sweepTargetR', Number.isFinite(v) && v >= 0.25 && v <= 10 ? v : undefined); render();
+    });
+    // Číselná pole uvnitř obrazovky (data-view="klíč"): prázdné = vypnuto.
+    // Rozsah hlídá i hlavní proces při ukládání.
+    $('content').addEventListener('change', e => {
+      const key = e.target.dataset && e.target.dataset.view;
+      if (!key) return;
+      const v = e.target.value.trim() === '' ? NaN : Number(e.target.value.replace(',', '.'));
+      setView(key, Number.isFinite(v) && v > 0 ? v : undefined);
+      render();
     });
     $('themeToggle').addEventListener('click', () => {
       setView('theme', document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');

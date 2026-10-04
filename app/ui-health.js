@@ -33,6 +33,8 @@
       metric('SETUP_ONLY', s.setups, 'nikdy v P/L'),
       s.legacy ? metric('Legacy', s.legacy, 'mimo použitelné') : '',
       s.hasSkipLiveField ? metric('Naživo bych nevzal', s.skipLive, h.options.includeSkipLive ? 'započítané' : 'mimo výkon') : '',
+      s.noFill ? metric('No fill (hypotetické)', s.noFill, h.options.includeNoFill ? 'započítané' : 'mimo výkon') : '',
+      s.skipped ? metric('Vědomě vynechané (hypotetické)', s.skipped, h.options.includeSkipped ? 'započítané' : 'mimo výkon') : '',
       metric('Výkonový vzorek', s.perf, 'obchody, které se počítají'),
       metric('Dnů s obchody', days)
     ].join('');

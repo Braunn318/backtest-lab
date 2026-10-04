@@ -21,12 +21,17 @@
 //    měl 9 dnů místo 35.
 //  - „Naživo bych nevzal" zrcadlí deník (R2.5): ve výchozím stavu mimo,
 //    přepínač je zapne. SETUP_ONLY nikdy.
+//  - Hypotetické výsledky (no fill / vědomě vynechané, deník 4.7.3) ve
+//    výchozím stavu mimo – nejsou exekuce. Množinu rozhoduje jen
+//    LabNormalize.inPerformance.
 
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  const isNode = typeof module !== 'undefined' && module.exports;
+  const normalize = isNode ? require('./normalize.js') : root.LabNormalize;
+  const api = factory(normalize);
+  if (isNode) module.exports = api;
   if (root) root.LabSequence = api;
-}(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (N) {
 
   const RUNS_MIN_EACH = 10;       // n₁ i n₂ aspoň 10, jinak normální aproximace neplatí
   const Z_SIGNIFICANT = 1.96;     // oboustranně 5 %
@@ -42,10 +47,9 @@
   // ------------------------------------------------------------- sekvence
 
   function sequenceBase(records, options = {}) {
-    const includeSkipLive = !!options.includeSkipLive;
     const base = records
       .map((record, index) => ({ record, index }))
-      .filter(x => x.record.isTrade && (includeSkipLive || x.record.isLiveEligible));
+      .filter(x => N.inPerformance(x.record, options));
     base.sort((a, b) => {
       const da = a.record.date || '', db = b.record.date || '';
       if (da !== db) return da < db ? -1 : 1;
@@ -64,10 +68,14 @@
     }
     return {
       items,
+      // Všechny obchody v pořadí, vč. breakevenu – simulátor dne (krok 2)
+      // jede nad stejnou množinou a stejným řazením.
+      ordered: base.map(x => x.record),
       excluded,
       trades: base.length,
       legacy: items.filter(x => x.record.isLegacy).length,
       skipLive: items.filter(x => x.record.wouldSkipLive).length,
+      hypothetical: items.filter(x => x.record.isHypothetical).length,
       days: new Set(base.map(x => x.record.date).filter(Boolean)).size,
       noTime: base.filter(x => !has(x.record.entryMinutes)).length
     };

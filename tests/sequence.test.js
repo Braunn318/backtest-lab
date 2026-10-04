@@ -73,6 +73,23 @@ test('sekvence: legacy ano, „naživo bych nevzal" jen s přepínačem, SETUP_O
   assert.equal(withSkip.skipLive, 1);
 });
 
+test('sekvence: hypotetické výsledky (no fill / vynechané) ve výchozím stavu mimo', () => {
+  const recs = norm([
+    trade({ date: '2026-08-03', entryTime: '15:00' }),
+    stop({ date: '2026-08-03', entryTime: '15:10', fillStatus: 'NO_FILL' }),
+    trade({ date: '2026-08-03', entryTime: '15:20', fillStatus: 'SKIPPED' }),
+    stop({ date: '2026-08-03', entryTime: '15:30', fillStatus: 'MISSED' })
+  ]);
+  const def = SQ.sequenceBase(recs);
+  assert.deepEqual(def.items.map(x => x.record.id), [recs[0].id]);
+  assert.equal(def.hypothetical, 0);
+  assert.deepEqual(def.ordered.map(r => r.id), [recs[0].id], 'simulátor jede nad stejnou množinou');
+  const withNoFill = SQ.sequenceBase(recs, { includeNoFill: true });
+  assert.deepEqual(withNoFill.items.map(x => x.record.id), [recs[0].id, recs[1].id, recs[3].id]);
+  assert.equal(withNoFill.hypothetical, 2);
+  assert.equal(SQ.sequenceBase(recs, { includeSkipLive: true }).items.length, 1);
+});
+
 test('sekvence: řazení podle data a času vstupu, ne podle pořadí v exportu', () => {
   const recs = norm([
     stop({ date: '2026-08-04', entryTime: '15:00', id: 'c' }),

@@ -18,6 +18,9 @@
 //  - DOPOČÍTANÁ HODNOTA NENÍ MĚŘENÍ: mfeTicksDerived / maeTicksDerived jsou
 //    dopočtené z výstupní ceny (u targetu je dopočtené MFE z definice rovno
 //    exitTicks). Do výpočtů fáze 2 vstupuje jen *Measured
+//  - od deníku 4.7.3 může TRADE (bez recordType) nést fillStatus NO_FILL /
+//    MISSED / SKIPPED s výstupem a P/L = hypotetický výsledek, ne exekuce
+//    (hypotheticalGroup, inPerformance)
 //  - prázdná hodnota je null nebo "" – NULA JE PLATNÉ MĚŘENÍ („cena nešla ani
 //    o tick", u postExitFavorableTicks „dál už nic nebylo")
 //
@@ -209,6 +212,35 @@
     return Math.sign(x) * Math.abs(r);
   }
 
+  // Skupina hypotetického obchodu – stejná definice jako hypotheticalGroup()
+  // v deníku 4.7.3: NO_FILL a MISSED („nestihl jsem" není vědomé rozhodnutí)
+  // → 'noFill', SKIPPED → 'skipped', prázdný stav nebo FILLED → null (naplněno).
+  // SETUP_ONLY skupinu nemá – do výkonu nevstupuje nikdy.
+  //
+  // Záměrně NEMĚNÍ isLiveEligible: „naživo bych nevzal" je jiná skupina
+  // s vlastním přepínačem (v deníku i tady) a zapnutí jedné nesmí potichu
+  // vrátit do výkonu druhou.
+  function hypotheticalGroupOf(out) {
+    if (out.isSetupOnly) return null;
+    if (out.fillStatus === 'NO_FILL' || out.fillStatus === 'MISSED') return 'noFill';
+    if (out.fillStatus === 'SKIPPED') return 'skipped';
+    return null;
+  }
+
+  // Patří obchod do výkonu? Jediné místo pro výkonové vzorky všech analýz
+  // (zdraví dat, SL a TP, síla hladin, sekvence, simulátor, mřížka) –
+  // zrcadlí performanceRecords() v deníku. Každá skupina mimo výkon se
+  // zapíná zvlášť: options { includeSkipLive, includeNoFill, includeSkipped },
+  // výchozí stav = všechny mimo. Legacy tu NEROZHODUJE – fáze 1/2 je
+  // vyřazuje, fáze 3 je bere (CLAUDE.md).
+  function inPerformance(record, options = {}) {
+    if (!record || !record.isTrade) return false;
+    if (!record.isLiveEligible && !options.includeSkipLive) return false;
+    if (record.hypotheticalGroup === 'noFill' && !options.includeNoFill) return false;
+    if (record.hypotheticalGroup === 'skipped' && !options.includeSkipped) return false;
+    return true;
+  }
+
   // Kontextová pole, která obchod nemá vyplněná – stejná definice jako
   // FJTaxonomy.missingContextKeys v deníku 4.7.1 (R2.6), aby „Neúplné · N"
   // v deníku a „chybí" v Labu seděly. Rozdíl: klíč se neověřuje proti
@@ -298,6 +330,11 @@
     out.wouldSkipLive = src.wouldSkipLive === true;
     out.hasWouldSkipLiveField = Object.prototype.hasOwnProperty.call(src, 'wouldSkipLive');
     out.isLiveEligible = !out.wouldSkipLive;
+    // Hypotetický výsledek: obchod s cenami a P/L, který se ale nenaplnil
+    // nebo byl vědomě vynechaný – „co by to udělalo". Není to exekuce.
+    out.hypotheticalGroup = hypotheticalGroupOf(out);
+    out.isHypothetical = out.hypotheticalGroup != null;
+    out.isExecuted = out.isTrade && !out.isHypothetical;
 
     out.rSigned = signedR(out.rMultiple, out.exitTicks);
     // „Ziskový" podle ticků, ne podle pnlRaw: u BE obchodu bývá exitTicks > 0
@@ -385,6 +422,7 @@
     excursionOf,
     minutesOf,
     signedR,
+    inPerformance,
     normalizeRecord,
     normalizeExport
   };

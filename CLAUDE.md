@@ -102,8 +102,8 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
   (SL a TP, Síla hladin) hotové na větvi test (0.2.0), čekají na ověření uživatelem.
 - Fáze 3 (PLAN_RISK_MANAGEMENT.md §9): krok 1 sekvenční analýza potvrzený a commitnutý;
   krok 2 simulátor dne, krok 3 mřížka variant a hypotetické obchody (deník 4.7.3, přepínače
-  no fill / vynechané) commitnuté na test 4. 10. (0.3.0), nepushnuté, čekají na ověření
-  uživatelem. Další: 4 dva deníky vedle sebe (§8.1, nikdy nesčítat).
+  no fill / vynechané) na test, vydané 5. 10. jako pre-release v0.3.0 (test); čekají na
+  ověření uživatelem, pak merge do main. Další: 4 dva deníky vedle sebe (§8.1, nikdy nesčítat).
   Výsledek kroku 1: Phidias 1 z = +0,47 (náhodné), Backtest_1 z = −0,83.
 - Stav dat 3. 10.: hrdlo = plánovaný cíl s cenou (4 obchody ve výkonovém vzorku),
   SR řádky s místem 10/21 (proti TP) a 13/30 (proti SL).

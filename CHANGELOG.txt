@@ -1,4 +1,6 @@
-## 0.3.0 - 2026-10-03 (rozpracováno – fáze 3, PLAN_RISK_MANAGEMENT.md)
+## 0.3.0 - 2026-10-05
+- Fáze 3 (PLAN_RISK_MANAGEMENT.md), kroky 1–3 – obrazovka Denní risk. Krok 4 (dva deníky
+  vedle sebe) ještě není. Lab dál jen čte, nic nezapisuje.
 - 2026-10-04: hypotetické obchody z deníku 4.7.3 (nenaplněná limitka nebo vědomě vynechaný
   setup uložený jako celý obchod s výstupem a P/L – „co by to udělalo“) se už nepočítají
   jako exekuce. Dřív měly isTrade i isLiveEligible = true a šly do všech analýz.

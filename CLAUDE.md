@@ -114,5 +114,7 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
   stav, `test` = rozpracované; merge do main až po ověření uživatelem.
 - Kód na branchi test, merge do main až po ověření.
 - Testy: vestavěný node:test, bez nových závislostí (`npm test`). Spuštění: `npm start`.
+- Instalátor: `npm run dist` → dist\Backtest-Lab-Setup-<verze>.exe (electron-builder jen jako
+  sestavovací devDependency). Ke každému vydání přiložit k GitHub release vedle zipu se zdrojáky.
 - Tento soubor a CHANGELOG.txt jsou sdílený stav napříč chaty —
   po každé dávce změn je aktualizuj.

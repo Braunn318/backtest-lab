@@ -1,4 +1,8 @@
 ## 0.3.0 - 2026-10-05
+- Instalátor pro Windows: `npm run dist` (electron-builder, NSIS) → dist\Backtest-Lab-Setup-<verze>.exe.
+  Instaluje se pro aktuálního uživatele, zástupce na ploše a ve Startu, odinstalace nemaže
+  views.json. Ikona zatím výchozí Electron. Zdrojáky aplikace beze změny; electron-builder
+  je jen sestavovací devDependency. Instalátor se přikládá k GitHub release vedle zipu.
 - Fáze 3 (PLAN_RISK_MANAGEMENT.md), kroky 1–3 – obrazovka Denní risk. Krok 4 (dva deníky
   vedle sebe) ještě není. Lab dál jen čte, nic nezapisuje.
 - 2026-10-04: hypotetické obchody z deníku 4.7.3 (nenaplněná limitka nebo vědomě vynechaný

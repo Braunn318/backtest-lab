@@ -4,11 +4,48 @@
   "description": "Backtest Lab 0.3.0 – zdraví dat, SL a TP, síla hladin, denní risk z Futures Journal PRO (read-only).",
   "main": "main.js",
   "private": true,
+  "author": "Jája S",
   "scripts": {
     "start": "electron .",
-    "test": "node --test"
+    "test": "node --test",
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "^43.0.0"
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "cz.futuresjournal.backtestlab",
+    "productName": "Backtest Lab",
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "app/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Backtest Lab",
+      "uninstallDisplayName": "Backtest Lab",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "artifactName": "Backtest-Lab-Setup-${version}.${ext}",
+    "asar": true
   }
 }

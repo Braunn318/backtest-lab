@@ -130,7 +130,10 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
   no fill / vynechané) na test, vydané 5. 10. jako pre-release v0.3.0 (test); čekají na
   ověření uživatelem, pak merge do main.
 - Přehlednost (ZADANI_PREHLEDNOST.md, 6. 10.): úvodní obrazovka „Co teď vím" + sbalené sekce
-  na test (0.3.1), nezacommitováno, čeká na ověření uživatelem. Měla přednost před krokem 4.
+  (0.3.1) a vlastní volby deníku z exportu `taxonomy` místo „Neznámých klíčů" (0.3.2, potřebuje
+  deník 4.7.4) – na test, vydané 8. 10. jako pre-release v0.3.2 (test); čekají na ověření
+  uživatelem, pak merge do main. Přehlednost měla přednost před krokem 4.
+- Vydání na test: skill `.claude/skills/release_test` (gitignored, lokální).
 - Další v řadě: fáze 3 krok 4 – dva deníky vedle sebe (§8.1, nikdy nesčítat). NEZAČÍNAT,
   čeká na rozhodnutí uživatele, až bude víc dnů.
   Výsledek kroku 1: Phidias 1 z = +0,47 (náhodné), Backtest_1 z = −0,83.

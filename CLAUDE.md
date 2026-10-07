@@ -48,12 +48,16 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
   formuláře, pro analýzu chybí dál to, co chybí.
 - 0 je platné měření (postExitFavorableTicks = 0 = „dál už nic nebylo"),
   prázdné = null / "".
-- Export nenese taxonomii ani příznaky deníku (backtest / hidden) – viz R2.7.
+- Export nenese příznaky deníku (backtest / hidden). Od deníku 4.7.4 nese `taxonomy`
+  (úprava slovníků: vlastní volby CUSTOM_…, přejmenování) – viz R2.7.
 
 ## Struktura
 - main.js – okno, IPC, fs.watch. Jediný zápis: writeViews() → %APPDATA%\backtest-lab\views.json
+- app/views.js – co smí do views.json a jak se čistí (sanitizeViews, sdílí main.js i okno),
+  rozbalené sekce openSections { obrazovka: [id] }, co se maže při změně deníku (JOURNAL_SCOPED)
 - lib/paths.js – cesta ke zdroji (přepis → customDataDir deníku → výchozí), assertLabWritable
-- app/labels.js – vlastní mapa klíč → popisek z VÝCHOZÍCH slovníků deníku (R2.7)
+- app/labels.js – vlastní mapa klíč → popisek z VÝCHOZÍCH slovníků deníku + overlay `taxonomy`
+  z exportu (custom, labels; applyJournalTaxonomy volá normalizeExport) (R2.7)
 - app/normalize.js – JEDINÉ předzpracování záznamu; analýzy čtou jen jeho výstup.
   Původ MFE/MAE (mfe/mae = {ticks, tier}), *Measured, maxFavorable/AdverseMeasured,
   slSweepAdverse, stav hladin none/present/unknown, plannedTarget, missingContext, unknownKeys,
@@ -66,8 +70,11 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
 - app/daysim.js – fáze 3 krok 2: simulátor dne (pravidla, jednotka R, souhrn variant, po dnech)
 - app/variants.js – fáze 3 krok 3: mřížka variant (rodiny po jednom pravidle), leave-one-day-out,
   časové rozdělení, stabilní oblast / osamělá / nespolehlivá, náhodné vynechání
-- app/ui.js (kostra) + ui-common/ui-health/ui-sltp/ui-levels/ui-risk.js + index.html.
+- app/overview.js – úvodní obrazovka „Co teď vím" a stavy sekcí (✓ / ~ / –). NIC NEPOČÍTÁ:
+  bere výsledky analýz výše a jejich prahy, skládá věty, blok „Co vyplnit" a „Kdy to bude"
+- app/ui.js (kostra) + ui-common/ui-overview/ui-health/ui-sltp/ui-levels/ui-risk.js + index.html.
   Obrazovka může vrátit screen.scope(ctx) → { n, note } pro hlavičku „Počítá se".
+  Obrazovky skládají sekce přes LabUI.sections(screen, [{ id, title, state, headline, body, missing }], views).
 
 ## Pravidla analýz (fáze 2)
 - Do výpočtů jen NAMĚŘENÉ MFE/MAE (tier nt8 / manual). Dopočtené se ukazují zvlášť.
@@ -97,16 +104,39 @@ Ověřeno proti exportu 3. 10. 2026, deník Backtest_1, 54 obchodů
   kladná = šum, neprojde LOO = nespolehlivá. Pod 20 dny nic z toho, jen popis.
 - Při záporné expectancy každé ubírající pravidlo vyjde kladně → sloupec „Náhodné vynechání“.
 
+## Přehlednost (ZADANI_PREHLEDNOST.md)
+- Úvodní obrazovka „Co teď vím" je první v navigaci a otevírá se po spuštění. 6–10 vět, žádné
+  tabulky ani graf, žádné doporučení, co obchodovat (test hlídá „doporuč", „nastav si", „optimální").
+- Tři stavy, nic mezi: ✓ ví se (projde prahem analýzy) · ~ zatím slabé (věta začíná „Předběžně")
+  · – nejde (věta říká co chybí a kolik). Prahy = ty, které už ukazují obrazovky: pod SAMPLE_GREY 10
+  nejde, pod SAMPLE_WARN 30 slabé (SL sweep a mřížka SL × TP 50); runs test platný = 10 zisků
+  i 10 ztrát; mřížka variant 20 dnů; pravidlo ze simulátoru je ✓ jen nad 20 dny a když jeho
+  varianta v mřížce projde bez jednoho dne, v čase a není osamělá. Prahy se kvůli plnějším
+  obrazovkám NESNIŽUJÍ – prázdno je správná odpověď.
+- „Co vyplnit" se odvozuje z řádků použitelnosti zdraví dat: jen pole, kterému někde chybí
+  a jehož analýza není ✓ (bez vlastního stavu – R statistika, plánovaný cíl – pod cílem 50).
+  Seskupené podle chybějícího pole, od nejmenšího N; fill rate na konci (do hrdla se nepočítá).
+- „Kdy to bude" = prognóza zdraví dat (cíl 50, tempo použitelné ÷ obchodní dny), nepočítá se znovu.
+- Na čtyřech obrazovkách je každá sekce sbalená, hlavička nese hlavní číslo / verdikt.
+  Rozbalené se pamatují per obrazovka (views.json openSections) a přežijí změnu deníku.
+  Analýza, která nemůže běžet, se nekreslí – jen „Zatím nejde — chybí …" a odkaz na „Co vyplnit".
+  Pořadí: ✓, pak ~, pak –.
+
 ## Stav
 - Fáze 1 (Zdraví dat) + opravy (kontrola 11, prognóza z hrdla, práh fill rate) a fáze 2
   (SL a TP, Síla hladin) hotové na větvi test (0.2.0), čekají na ověření uživatelem.
 - Fáze 3 (PLAN_RISK_MANAGEMENT.md §9): krok 1 sekvenční analýza potvrzený a commitnutý;
   krok 2 simulátor dne, krok 3 mřížka variant a hypotetické obchody (deník 4.7.3, přepínače
   no fill / vynechané) na test, vydané 5. 10. jako pre-release v0.3.0 (test); čekají na
-  ověření uživatelem, pak merge do main. Další: 4 dva deníky vedle sebe (§8.1, nikdy nesčítat).
+  ověření uživatelem, pak merge do main.
+- Přehlednost (ZADANI_PREHLEDNOST.md, 6. 10.): úvodní obrazovka „Co teď vím" + sbalené sekce
+  na test (0.3.1), nezacommitováno, čeká na ověření uživatelem. Měla přednost před krokem 4.
+- Další v řadě: fáze 3 krok 4 – dva deníky vedle sebe (§8.1, nikdy nesčítat). NEZAČÍNAT,
+  čeká na rozhodnutí uživatele, až bude víc dnů.
   Výsledek kroku 1: Phidias 1 z = +0,47 (náhodné), Backtest_1 z = −0,83.
-- Stav dat 3. 10.: hrdlo = plánovaný cíl s cenou (4 obchody ve výkonovém vzorku),
-  SR řádky s místem 10/21 (proti TP) a 13/30 (proti SL).
+- Stav dat 6. 10. (Backtest_1, 52 obchodů / 6 dnů): hrdlo = plánovaný cíl s cenou (7 obchodů),
+  SR řádky s místem 12/23 (proti TP) a 16/33 (proti SL). Phidias 1: 36 dnů, runs z = +0,57,
+  mřížka variant bez stabilní oblasti, „2 SL za sebou" neprojde bez jednoho dne.
 - Fixtury z reálných dat (kdyby byly potřeba) patří do „Claude files/" (gitignore), ne do repa.
 
 ## Konvence

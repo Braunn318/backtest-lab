@@ -3,21 +3,26 @@
 
 (function () {
   const H = window.LabHealth;
-  const { esc, pct, num, STATUS_LABEL, itemsTable, metric } = window.LabUI;
+  const { plural } = window.LabOverview;
+  const { esc, pct, num, STATUS_LABEL, itemsTable, metric, sections } = window.LabUI;
 
   function heroCheck11(c) {
     const cls = c.status === 'warn' ? 'warn' : c.status === 'pass' ? 'pass' : '';
-    return `<div class="card hero ${cls}">
-      <div class="hero-kicker">Nejdůležitější kontrola zdraví dat · kontrola ${c.id}</div>
-      <div class="hero-head"><span class="pill ${c.status}">${STATUS_LABEL[c.status]}</span><span class="hero-title">${esc(c.title)}</span></div>
+    const body = `<div class="hero-kicker">Nejdůležitější kontrola zdraví dat · kontrola ${c.id}</div>
       <div class="hero-stats">
         <span>Bez pozorování: <b>${c.missing ?? 0}</b> z <b>${c.checked}</b> targetů</span>
         <span>Podíl: <b>${c.share == null ? '—' : pct(c.share)}</b></span>
         <span>Práh varování: <b>více než ${Math.round(H.NO_OBSERVATION_WARN_SHARE * 100)} %</b></span>
       </div>
       ${c.message ? `<p class="hero-message">${esc(c.message)}</p>` : `<p class="hero-message muted">Počítá se ze všech obchodů s výsledkem target. Chybí = prázdné postExitFavorableTicks; 0 je platné měření („dál už nic nebylo“).</p>`}
-      ${c.items.length ? `<details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Seznam targetů bez pozorování (${c.items.length})</summary>${itemsTable(c.items)}</details>` : ''}
-    </div>`;
+      ${c.items.length ? `<details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Seznam targetů bez pozorování (${c.items.length})</summary>${itemsTable(c.items)}</details>` : ''}`;
+    return {
+      id: 'c11', title: c.title, cls: `hero ${cls}`,
+      state: c.status === 'na' ? 'na' : 'ok',
+      headline: `<span class="pill ${c.status}">${STATUS_LABEL[c.status]}</span> ${c.missing ?? 0} z ${c.checked} targetů bez pozorování (${c.share == null ? '—' : pct(c.share)})`,
+      missing: 'obchody s výsledkem target',
+      body
+    };
   }
 
   function barClass(n) {
@@ -52,29 +57,31 @@
 
     const dayRows = s.days.map(d => `<tr><td class="mono">${esc(d.date)}</td><td class="num">${d.trades}</td><td class="num">${d.setups}</td><td class="num">${d.noFill}</td>${s.legacy ? `<td class="num">${d.legacy || ''}</td>` : ''}</tr>`).join('');
 
-    return `<div class="card">
-      <h2><span class="letter">A</span>Přehled vzorku a použitelnost pro analýzy</h2>
-      <p class="section-sub">Kolik záznamů unese kterou analýzu fáze 2. Počítá se jen naměřené – dopočtené MFE/MAE a cíl převzatý z výstupu ne. Cíl je ${H.USABLE_GOAL}.</p>
+    return {
+      id: 'a', letter: 'A', title: 'Přehled vzorku a použitelnost pro analýzy', state: 'ok',
+      headline: esc(`${s.perf} ${plural(s.perf, 'obchod', 'obchody', 'obchodů')} ve výkonovém vzorku · ${days} ${plural(days, 'den', 'dny', 'dnů')} s obchody · ${s.total} ${plural(s.total, 'záznam', 'záznamy', 'záznamů')}`),
+      body: `<p class="section-sub">Kolik záznamů unese kterou analýzu fáze 2. Počítá se jen naměřené – dopočtené MFE/MAE a cíl převzatý z výstupu ne. Cíl je ${H.USABLE_GOAL}.</p>
       <div class="metrics">${metrics}</div>
       <div class="two-col">
         <div class="table-scroll"><table><thead><tr><th>Analýza</th><th class="num">Použitelné</th><th class="num">Do ${H.USABLE_GOAL}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
         <details ${s.days.length <= 12 ? 'open' : ''}><summary class="muted" style="cursor:pointer;margin-bottom:8px">Podle dnů (${s.days.length})</summary>
           <div class="table-scroll"><table><thead><tr><th>Datum</th><th class="num">TRADE</th><th class="num">SETUP_ONLY</th><th class="num">NO_FILL</th>${s.legacy ? '<th class="num">legacy</th>' : ''}</tr></thead><tbody>${dayRows}</tbody></table></div>
         </details>
-      </div>
-    </div>`;
+      </div>`
+    };
   }
 
   // R2.5: blok „naživo bych nevzal" – bez ohledu na přepínač, jako v deníku.
   function skipLiveCard(h) {
     const s = h.skipLive;
-    if (!h.sample.hasSkipLiveField || !s.count) return '';
+    if (!h.sample.hasSkipLiveField || !s.count) return null;
     const money = v => (v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2).replace('.', ',') + ' $');
     const rVal = v => (v == null ? '—' : (v > 0 ? '+' : '') + num(Math.round(v * 100) / 100) + ' R');
     const reasons = s.byReason.map(r => `<tr><td>${esc(r.label)}</td><td class="num">${r.count}</td><td class="num">${money(r.pnl)}</td><td class="num">${pct(r.winRate)}</td></tr>`).join('');
-    return `<div class="card">
-      <h2>Obchody, které bych naživo nevzal</h2>
-      <p class="section-sub">Stejně jako v deníku: ve výchozím stavu mimo výkon, ve fill rate zůstávají. Tenhle blok se počítá vždy – odpovídá na to, jestli tě vlastní filtr nestojí peníze.</p>
+    return {
+      id: 'skiplive', title: 'Obchody, které bych naživo nevzal', state: 'ok',
+      headline: esc(`${s.count} ${plural(s.count, 'obchod', 'obchody', 'obchodů')} · P/L ${money(s.pnl)} · win rate ${pct(s.winRate)}`),
+      body: `<p class="section-sub">Stejně jako v deníku: ve výchozím stavu mimo výkon, ve fill rate zůstávají. Tenhle blok se počítá vždy – odpovídá na to, jestli tě vlastní filtr nestojí peníze.</p>
       <div class="metrics">
         ${metric('Počet', s.count)}
         ${metric('P/L', money(s.pnl))}
@@ -82,19 +89,20 @@
         ${metric('Expectancy bez nich', money(s.without.expectancy), rVal(s.without.expectancyR))}
         ${metric('Expectancy s nimi', money(s.with.expectancy), rVal(s.with.expectancyR))}
       </div>
-      <div class="table-scroll"><table><thead><tr><th>Důvod</th><th class="num">Počet</th><th class="num">P/L</th><th class="num">Win rate</th></tr></thead><tbody>${reasons}</tbody></table></div>
-    </div>`;
+      <div class="table-scroll"><table><thead><tr><th>Důvod</th><th class="num">Počet</th><th class="num">P/L</th><th class="num">Win rate</th></tr></thead><tbody>${reasons}</tbody></table></div>`
+    };
   }
 
   function unknownKeysCard(h) {
-    if (!h.unknownKeys.length) return '';
+    if (!h.unknownKeys.length) return null;
     const L = window.LabLabels;
-    const items = h.unknownKeys.map(u => ({ record: u.record, detail: `${L.fieldLabel(u.field)}: „${u.key}“ – výchozí slovník deníku tenhle klíč nezná` }));
-    return `<div class="card warn-card">
-      <h2><span class="pill warn">UPOZORNĚNÍ</span> Neznámé klíče (${h.unknownKeys.length})</h2>
-      <p class="section-sub">Klíče, které výchozí slovníky deníku neznají – vlastní volba, nebo pozůstatek zrušeného slovníku. Zobrazují se tak, jak přišly. Opravit obchod je na tobě v deníku; Lab nic nezapisuje.</p>
-      ${itemsTable(items)}
-    </div>`;
+    const items = h.unknownKeys.map(u => ({ record: u.record, detail: `${L.fieldLabel(u.field)}: „${u.key}“ – slovník deníku tenhle klíč nezná` }));
+    return {
+      id: 'unknown', title: `Neznámé klíče (${h.unknownKeys.length})`, state: 'ok', cls: 'warn-card',
+      headline: `<span class="pill warn">UPOZORNĚNÍ</span> ${h.unknownKeys.length} ${plural(h.unknownKeys.length, 'klíč', 'klíče', 'klíčů')}, které slovník deníku nezná`,
+      body: `<p class="section-sub">Klíče, které nezná ani výchozí slovník, ani úprava slovníků z exportu deníku – smazaná vlastní volba, pozůstatek zrušeného slovníku, nebo export ze starší verze deníku (před 4.7.4 export vlastní volby nenesl; stačí v deníku cokoli uložit). Zobrazují se tak, jak přišly. Opravit obchod je na tobě v deníku; Lab nic nezapisuje.</p>
+      ${itemsTable(items)}`
+    };
   }
 
   function sectionB(h) {
@@ -107,12 +115,13 @@
         + `<td class="num"><b>${pct(r.pct)}</b></td><td class="num">${r.missing ? `chybí ${r.missing}` : '—'}</td>`
         + `<td style="width:36%"><div class="bar"><i class="${cls}" style="width:${w}%"></i></div></td></tr>`;
     }).join('');
-    return `<div class="card">
-      <h2><span class="letter">B</span>Úplnost polí</h2>
-      <p class="section-sub">Stejná definice jako štítek „⚠ Neúplné“ v deníku (missingContextKeys): nula i dopočtená hodnota jsou vyplněné, u nenaplněného setupu se průběh nekontroluje. Nastavení karet formuláře se nepřebírá – pro analýzu chybí, co chybí. Všechny obchody ve výběru.</p>
+    return {
+      id: 'b', letter: 'B', title: 'Úplnost polí', state: 'ok',
+      headline: esc(`neúplných obchodů ${c.incomplete} z ${c.total}`),
+      body: `<p class="section-sub">Stejná definice jako štítek „⚠ Neúplné“ v deníku (missingContextKeys): nula i dopočtená hodnota jsou vyplněné, u nenaplněného setupu se průběh nekontroluje. Nastavení karet formuláře se nepřebírá – pro analýzu chybí, co chybí. Všechny obchody ve výběru.</p>
       <div class="metrics">${metric('Neúplných obchodů', `${c.incomplete} z ${c.total}`)}</div>
-      <div class="table-scroll"><table><thead><tr><th>Pole</th><th class="num">Vyplněno</th><th class="num">Chybí</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    </div>`;
+      <div class="table-scroll"><table><thead><tr><th>Pole</th><th class="num">Vyplněno</th><th class="num">Chybí</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    };
   }
 
   function checkExtra(c) {
@@ -139,11 +148,12 @@
     }).join('');
     const counts = h.checks.reduce((a, c) => (a[c.status] = (a[c.status] || 0) + 1, a), {});
     const tally = ['fail', 'warn', 'pass', 'na'].filter(k => counts[k]).map(k => `<span class="pill ${k}">${STATUS_LABEL[k]} ${counts[k]}</span>`).join(' ');
-    return `<div class="card">
-      <h2><span class="letter">C</span>Konzistenční kontroly ${tally}</h2>
-      <p class="section-sub">Kliknutím na řádek se rozbalí seznam obchodů, které kontrolu shodily. R se znaménkem = rMultiple × znaménko exitTicks (deník ukládá rMultiple bez znaménka). Ziskový = exitTicks &gt; 0.</p>
-      ${list}
-    </div>`;
+    return {
+      id: 'c', letter: 'C', title: 'Konzistenční kontroly', state: 'ok',
+      headline: tally,
+      body: `<p class="section-sub">Kliknutím na řádek se rozbalí seznam obchodů, které kontrolu shodily. R se znaménkem = rMultiple × znaménko exitTicks (deník ukládá rMultiple bez znaménka). Ziskový = exitTicks &gt; 0.</p>
+      ${list}`
+    };
   }
 
   function sectionD(h) {
@@ -153,18 +163,19 @@
     const rows = f.rows.map(r => `<tr class="${b && r.key === b.key ? 'hl' : ''}"><td><b>${esc(r.label)}</b>${b && r.key === b.key ? ' <span class="pill warn">hrdlo</span>' : ''}<div class="lacks">chybí: ${esc(r.lacks)}</div></td>`
       + `<td class="num">${r.n} <span class="muted">${esc(r.unit)}</span></td><td class="num">${num(r.perDay)}</td>`
       + r.goals.map(g => `<td class="num">${daysText(g)}</td>`).join('') + '</tr>').join('');
-    return `<div class="card">
-      <h2><span class="letter">D</span>Kdy budu mít vzorek</h2>
-      <p class="section-sub">Pro každou analýzu zvlášť, z jejího vlastního N ÷ ${f.days} obchodních dnů ve výběru. Předpokládá, že budeš dál zapisovat stejně úplně jako dosud. Fill rate se neodhaduje – nevzniká z obchodů, ale ze zapsaných nenaplněných limitek.</p>
+    return {
+      id: 'd', letter: 'D', title: 'Kdy budu mít vzorek', state: 'ok',
+      headline: b ? esc(`hrdlo: ${b.label} – ${b.n} ${b.unit}, do ${b.goals[0].goal} ${daysText(b.goals[0])}`) : '',
+      body: `<p class="section-sub">Pro každou analýzu zvlášť, z jejího vlastního N ÷ ${f.days} obchodních dnů ve výběru. Předpokládá, že budeš dál zapisovat stejně úplně jako dosud. Fill rate se neodhaduje – nevzniká z obchodů, ale ze zapsaných nenaplněných limitek.</p>
       ${b ? `<div class="metrics">${metric('Úzké hrdlo', b.label, `${b.n} ${b.unit} · chybí: ${b.lacks}`, 'wide')}${b.goals.map(g => metric(`Do ${g.goal}`, daysText(g), g.remaining ? `chybí ${g.remaining}` : 'splněno')).join('')}</div>` : ''}
-      <div class="table-scroll"><table><thead><tr><th>Analýza</th><th class="num">Použitelné</th><th class="num">Za den</th>${f.rows[0] ? f.rows[0].goals.map(g => `<th class="num">Do ${g.goal}</th>`).join('') : ''}</tr></thead><tbody>${rows}</tbody></table></div>
-    </div>`;
+      <div class="table-scroll"><table><thead><tr><th>Analýza</th><th class="num">Použitelné</th><th class="num">Za den</th>${f.rows[0] ? f.rows[0].goals.map(g => `<th class="num">Do ${g.goal}</th>`).join('') : ''}</tr></thead><tbody>${rows}</tbody></table></div>`
+    };
   }
 
   function render(ctx) {
     const h = ctx.health;
     const c11 = h.checks.find(c => c.id === 11);
-    return heroCheck11(c11) + unknownKeysCard(h) + sectionA(h) + skipLiveCard(h) + sectionB(h) + sectionC(h) + sectionD(h);
+    return sections('health', [heroCheck11(c11), unknownKeysCard(h), sectionA(h), skipLiveCard(h), sectionB(h), sectionC(h), sectionD(h)], ctx.views);
   }
 
   window.LabScreens = window.LabScreens || {};

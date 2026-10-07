@@ -140,6 +140,16 @@ V datech je dnes jeden takový pozůstatek: `VWAP_DEV` v `srStopLoss`
 u jednoho obchodu (slovník, který už v deníku není). Lab ho jen nahlásí —
 opravit obchod je na uživateli, Lab nezapisuje.
 
+**Doplněno 7. 10. (deník 4.7.4, Lab 0.3.2):** vlastní volby deníku
+(`CUSTOM_LVN_DAY`, `CUSTOM_FIX_RRR`, `CUSTOM_0_VE_FP` …) se hlásily jako
+neznámé klíče, přestože v deníku platné jsou. Export proto nově nese
+`taxonomy` = `settings.taxonomy` deníku (`{ SKUPINA: { custom, labels,
+hidden, order } }`). Lab z ní bere jen `custom` a `labels` u skupin, které
+zná (`LabLabels.applyJournalTaxonomy`, volá `normalizeExport`); SR_TARGET /
+SR_SL sdílí volby s ENTRY_LEVEL. Neznámý zůstává jen klíč, který nezná ani
+výchozí slovník, ani `custom` – a export ze starší verze deníku (bez
+`taxonomy`). Příznaky deníku (`backtest`, `hidden`) export dál nenese.
+
 #### R2.8 Vzorek — fáze 2 je prakticky odblokovaná
 
 ```

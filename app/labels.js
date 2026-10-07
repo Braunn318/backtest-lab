@@ -1,8 +1,10 @@
 'use strict';
-// Popisky klíčů. Export deníku nenese taxonomii (revize R2.7), takže Lab má
-// vlastní mapu klíč → popisek, převzatou z VÝCHOZÍCH slovníků deníku
-// (repo_clone/app/taxonomy.js, stav 3. 10. 2026). Uživatelské přejmenování
-// ani vlastní volby deníku sem nedoléhají.
+// Popisky klíčů. Lab má vlastní mapu klíč → popisek, převzatou z VÝCHOZÍCH
+// slovníků deníku (repo_clone/app/taxonomy.js, stav 3. 10. 2026). Od deníku
+// 4.7.4 nese export i úpravu slovníků deníku (`taxonomy`, revize R2.7):
+// vlastní volby (CUSTOM_…) a přejmenování se přes ni přidají nahoru
+// (applyJournalTaxonomy, volá ji normalizeExport). Starší export ji nemá –
+// pak platí jen výchozí slovníky.
 //
 // Neznámý klíč se zobrazí tak, jak přišel – nikdy se neskrývá – a zdraví dat
 // ho nahlásí. Lab ho neopravuje, nezapisuje.
@@ -143,15 +145,50 @@
     maxLevel: 'Hladina maxima'
   };
 
-  function isKnown(vocabulary, key) {
-    const v = VOCABULARIES[vocabulary];
-    return !!v && Object.prototype.hasOwnProperty.call(v, key);
+  const has = (map, key) => !!map && Object.prototype.hasOwnProperty.call(map, key);
+
+  // Úprava slovníků z exportu deníku: { SKUPINA: { custom:{KLÍČ:popisek},
+  // labels:{KLÍČ:popisek}, … } }. Bere se jen custom a labels u skupin, které
+  // Lab zná. SR_TARGET / SR_SL vlastní volby nemají – sdílí je s ENTRY_LEVEL.
+  // Lab drží vždy jeden deník, každé načtení overlay celý přepíše.
+  const KEY_RE = /^[A-Z0-9_]{1,64}$/;
+  let journal = {};
+
+  function cleanMap(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    for (const [key, label] of Object.entries(raw)) {
+      if (KEY_RE.test(key) && typeof label === 'string' && label.trim()) out[key] = label.trim();
+    }
+    return out;
   }
 
-  // Neznámý klíč se vrátí tak, jak přišel.
+  function applyJournalTaxonomy(config) {
+    journal = {};
+    const src = config && typeof config === 'object' ? config : {};
+    for (const vocabulary of Object.keys(VOCABULARIES)) {
+      const g = src[vocabulary];
+      if (!g || typeof g !== 'object') continue;
+      const custom = cleanMap(g.custom), labels = cleanMap(g.labels);
+      if (Object.keys(custom).length || Object.keys(labels).length) journal[vocabulary] = { custom, labels };
+    }
+    return journal;
+  }
+
+  function isKnown(vocabulary, key) {
+    const v = VOCABULARIES[vocabulary];
+    return !!v && (has(v, key) || has(journal[vocabulary] && journal[vocabulary].custom, key));
+  }
+
+  // Pořadí jako FJTaxonomy.labelOf v deníku: přejmenování → vlastní volba →
+  // výchozí. Neznámý klíč se vrátí tak, jak přišel – i když má přejmenování.
   function labelOf(vocabulary, key) {
     if (key == null || key === '') return '';
-    return isKnown(vocabulary, key) ? VOCABULARIES[vocabulary][key] : String(key);
+    if (!isKnown(vocabulary, key)) return String(key);
+    const j = journal[vocabulary] || {};
+    if (has(j.labels, key)) return j.labels[key];
+    if (has(j.custom, key)) return j.custom[key];
+    return VOCABULARIES[vocabulary][key];
   }
 
   function labelOfField(field, key) {
@@ -162,5 +199,5 @@
     return FIELD_LABEL[field] || field;
   }
 
-  return { VOCABULARIES, FIELD_VOCABULARY, isKnown, labelOf, labelOfField, fieldLabel };
+  return { VOCABULARIES, FIELD_VOCABULARY, applyJournalTaxonomy, isKnown, labelOf, labelOfField, fieldLabel };
 }));

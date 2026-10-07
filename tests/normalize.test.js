@@ -317,3 +317,33 @@ test('normalizeExport: celý soubor', () => {
   assert.equal(e.dayNotes['2026-09-01'].notes, 'x');
   assert.deepEqual(N.normalizeExport(null).records, []);
 });
+
+test('normalizeExport: vlastní volby z taxonomie deníku nejsou neznámé klíče', () => {
+  const L = require('../app/labels.js');
+  const trade = {
+    id: 'a',
+    targetLevel1: { type: 'CUSTOM_FIX_RRR', price: '7700' },
+    srTarget: [{ level: 'CUSTOM_LVN_DAY', price: '7710', ticksFromEntry: 8 }],
+    entryLevels: ['VAH', 'GONE']
+  };
+  const taxonomy = {
+    ENTRY_LEVEL: { custom: { CUSTOM_LVN_DAY: 'LVN Day' }, labels: { VAH: 'Horní hrana VA', GONE: 'x' }, hidden: ['VWAP_DEV'] },
+    SR_TARGET: { hidden: ['IB_EDGE'] },
+    TARGET_LEVEL: { custom: { CUSTOM_FIX_RRR: 'Fix RRR', 'bad key': 'x' } }
+  };
+
+  const e = N.normalizeExport({ journalId: 'j', taxonomy, trades: [trade] });
+  // GONE není nikde – přejmenování ho platným klíčem neudělá.
+  assert.deepEqual(e.records[0].unknownKeys, [{ field: 'entryLevels', key: 'GONE' }]);
+  assert.equal(L.labelOfField('targetLevel1', 'CUSTOM_FIX_RRR'), 'Fix RRR');
+  assert.equal(L.labelOfField('srTarget', 'CUSTOM_LVN_DAY'), 'LVN Day', 'ENTRY_LEVEL platí i pro SR kolonky');
+  assert.equal(L.labelOfField('entryLevels', 'VAH'), 'Horní hrana VA');
+  assert.equal(L.labelOfField('entryLevels', 'GONE'), 'GONE');
+  assert.equal(L.isKnown('TARGET_LEVEL', 'bad key'), false);
+
+  // Další deník bez taxonomie (starší export) overlay vyčistí.
+  const old = N.normalizeExport({ journalId: 'k', trades: [trade] });
+  assert.deepEqual(old.records[0].unknownKeys.map(u => u.key), ['GONE', 'CUSTOM_LVN_DAY', 'CUSTOM_FIX_RRR']);
+  assert.equal(L.labelOfField('targetLevel1', 'CUSTOM_FIX_RRR'), 'CUSTOM_FIX_RRR');
+  assert.equal(L.labelOfField('entryLevels', 'VAH'), 'VAH');
+});

@@ -1,3 +1,45 @@
+## 0.3.2 - 2026-10-07
+- Opraveno: vlastní volby deníku (CUSTOM_LVN_DAY, CUSTOM_FIX_RRR, CUSTOM_0_VE_FP …) se ve Zdraví
+  dat hlásily jako „Neznámé klíče" a zobrazovaly se jako surový klíč. Export deníku od 4.7.4 nese
+  `taxonomy` (úprava slovníků); Lab z ní bere vlastní volby a přejmenování (app/labels.js
+  applyJournalTaxonomy, volá ji normalizeExport). Popisky jsou teď jako v deníku („Fix RRR",
+  „LVN Day", „0 ve FP"). Neznámý zůstává jen klíč, který deník opravdu nezná, nebo export ze
+  starší verze deníku (pak stačí v deníku cokoli uložit). Overlay se při každém načtení deníku
+  přepíše – nic neprosakuje mezi deníky.
+- Zdraví dat: text karty „Neznámé klíče" to vysvětluje.
+- Testy: 152 (+1). Ověřeno nad reálnými daty: Phidias 1 11 → 0, Backtest_1 4 → 0.
+
+## 0.3.1 - 2026-10-06
+- Přehlednost (ZADANI_PREHLEDNOST.md) – jen zobrazení, žádná nová analýza, žádný výpočet
+  ani práh se nemění. Krok 4 fáze 3 (dva deníky vedle sebe) odložen, nezačatý.
+- Nová úvodní obrazovka „Co teď vím" – první v navigaci, otevírá se po spuštění. Jeden řádek
+  na analýzu (série, denní stop, MAE vítězů, MFE stopnutých, SL sweep, mřížka SL × TP, síla
+  hladin, kontrolní skupina, fill rate), věta v běžné češtině · n · odkaz na obrazovku.
+  - Tři stavy: ✓ ví se / ~ zatím slabé („Předběžně: …") / – nejde (co chybí a kolik).
+    Prahy jsou ty, které obrazovky už ukazují (10 / 30, u SL sweepu a mřížky 50, runs test
+    10 + 10, mřížka variant 20 dnů). Řazeno ✓ → ~ → –.
+  - Věty se skládají z existujících výsledků (app/overview.js nic nepočítá). Pravidlo zadané
+    v simulátoru dne: ušetří / zahodí / čistě; ✓ jen nad 20 dny, když jeho varianta v mřížce
+    projde bez jednoho dne, drží v čase a není osamělá. Bez pravidla řádek o stabilní oblasti mřížky.
+  - Blok „Co vyplnit při nejbližším replayi": pole, která dnes blokují analýzu, odvozená
+    z řádků použitelnosti zdraví dat, seskupená podle pole, od nejužšího hrdla. Vyplněné zmizí.
+  - Blok „Kdy to bude": za každou nespuštěnou analýzu prognóza ze zdraví dat (do 50, tempo
+    za den → replay dny), u mřížky variant chybějící dny.
+  - Žádná tabulka, graf ani doporučení, co obchodovat.
+- Zdraví dat, SL a TP, Síla hladin, Denní risk: každá sekce sbalená, hlavička nese hlavní číslo
+  nebo verdikt. Rozbalené sekce se pamatují per obrazovka (views.json openSections) a přežijí
+  změnu deníku. Analýza, která nemůže běžet, se nekreslí – jen „Zatím nejde — chybí …" a odkaz
+  na blok „Co vyplnit". Pořadí sekcí: se vzorkem, slabé, nespuštěné.
+  - Síla hladin: karta „Co téhle obrazovce chybí" nahrazena řádkem nahoře a „Zatím nejde"
+    u strany, která nemá 10 otestovaných hladin. Denní risk: mřížka variant pod 20 dny se
+    nekreslí (dřív tabulka „jen popis"); varování o filtru setupu zůstává nad sekcemi.
+- app/views.js: čištění views.json přesunuté z main.js (sdílí ho okno), nový klíč openSections
+  (jen známé obrazovky, krátká id). Zápis dál jen writeViews().
+- Testy: 151 (+12), ověřené 13 mutacemi (bez „Předběžně", snížené prahy, „Co vyplnit" bez
+  ohledu na vyplnění / neseřazené, chybí bez počtu, doporučení ve větě, změna deníku maže
+  sekce, nespuštěná analýza se kreslí, sekce neseřazené, paměť se nepoužije, …).
+  Proklikáno v prohlížeči nad reálnými exporty (Phidias 1, Backtest_1, Test dev).
+
 ## 0.3.0 - 2026-10-05
 - Instalátor pro Windows: `npm run dist` (electron-builder, NSIS) → dist\Backtest-Lab-Setup-<verze>.exe.
   Instaluje se pro aktuálního uživatele, zástupce na ploše a ve Startu, odinstalace nemaže

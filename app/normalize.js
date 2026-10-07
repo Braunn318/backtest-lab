@@ -392,10 +392,13 @@
     return out;
   }
 
-  // Celý soubor ai-exportu: { journalId, updatedAt, trades:[…], dayNotes:{…} }.
+  // Celý soubor ai-exportu: { journalId, updatedAt, taxonomy, trades:[…], dayNotes:{…} }.
+  // taxonomy (deník 4.7.4+) = úprava slovníků deníku; nastaví se dřív než
+  // záznamy, ať unknownKeys znají vlastní volby. Bez ní = jen výchozí slovníky.
   function normalizeExport(json) {
     const data = json && typeof json === 'object' ? json : {};
     const trades = Array.isArray(data.trades) ? data.trades : [];
+    L.applyJournalTaxonomy(data.taxonomy);
     return {
       journalId: textOrNull(data.journalId),
       updatedAt: textOrNull(data.updatedAt),

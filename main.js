@@ -23,17 +23,9 @@ if (P.isInside(LAB_DIR, JOURNAL_DIR) || P.isInside(JOURNAL_DIR, LAB_DIR)) {
 app.setPath('userData', LAB_DIR);
 
 const VIEWS_FILE = path.join(LAB_DIR, 'views.json');
-// Co se o pohledu ukládá. Nic o obchodech.
-// Číselná nastavení analýz a jejich povolený rozsah. risk* = pravidlo
-// simulátoru dne (prázdné = vypnuté), jednotka R, velikost pozice a účtu.
-const VIEW_NUMBERS = {
-  levelTolerance: [0, 20], sweepTargetR: [0.25, 10],
-  riskDailyLoss: [0.1, 100], riskConsecutiveSL: [1, 50], riskDailySL: [1, 50], riskMaxTrades: [1, 100],
-  riskDailyTarget: [0.1, 100], riskGiveBack: [0.1, 100],
-  riskUnitUSD: [0.01, 1e6], riskPosition: [1, 1000], riskAccount: [1, 1e9]
-};
-const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex']);
-const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS)];
+// Co se o pohledu ukládá a jak se to čistí: app/views.js (sdílí ho i okno).
+// Nic o obchodech.
+const { sanitizeViews } = require('./app/views.js');
 
 let mainWindow = null;
 let watcher = null;
@@ -48,22 +40,6 @@ function readViews() {
   } catch {
     return {};
   }
-}
-
-function sanitizeViews(input) {
-  const out = {};
-  const src = input && typeof input === 'object' ? input : {};
-  for (const key of VIEW_KEYS) {
-    const v = src[key];
-    if (v === undefined || v === null || v === '') continue;
-    if (BOOL_VIEWS.has(key)) out[key] = v === true;
-    else if (VIEW_NUMBERS[key]) {
-      const n = Number(v);
-      const [min, max] = VIEW_NUMBERS[key];
-      if (Number.isFinite(n) && n >= min && n <= max) out[key] = n;
-    } else out[key] = String(v).slice(0, 1000);
-  }
-  return out;
 }
 
 function sourceInfo(views = readViews()) {

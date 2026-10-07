@@ -6,13 +6,14 @@
 
 (function () {
   const SQ = window.LabSequence;
-  const { esc, pct, num, czDate, metric, sampleNote, SAMPLE_GREY } = window.LabUI;
+  const O = window.LabOverview;
+  const { esc, pct, num, czDate, metric, sampleNote, SAMPLE_GREY, sections } = window.LabUI;
 
   function options(ctx) {
     return ctx.options;
   }
 
-  function heroCard(res, ctx) {
+  function heroCard(res, ctx, st) {
     const b = res.base;
     const cls = res.verdict.kind === 'clustered' ? 'warn-card' : '';
     const pill = { random: 'NÁHODNÉ', clustered: 'SHLUKOVÁNÍ', alternating: 'STŘÍDÁNÍ', insufficient: 'MÁLO DAT' }[res.verdict.kind];
@@ -23,50 +24,51 @@
     if (b.skipLive) notes.push(`${b.skipLive} „naživo bych nevzal“ započteno`);
     if (b.hypothetical) notes.push(`${b.hypothetical} hypotetických (no fill / vynechané) započteno`);
     if (b.noTime) notes.push(`${b.noTime} bez času vstupu (řazeno podle pořadí v deníku)`);
-    const setupWarn = ctx.views.setupCode
-      ? '<div class="obs-warning">⚠ Je zapnutý filtr setupu – sekvence vynechává obchody, které mezi nimi proběhly. Pro otázku denního stopu ber celý den bez filtru setupu.</div>'
-      : '';
-    return `<div class="card ${cls}">
-      <h2><span class="pill ${res.verdict.kind === 'insufficient' ? 'warn' : 'tag'}">${pill}</span> Shlukují se ztráty?</h2>
-      <p class="hero-message" style="font-size:16px"><b>${esc(res.verdict.text)}</b></p>
-      ${setupWarn}
-      <div class="metrics" style="margin-top:14px">
+    return {
+      id: 'verdict', title: 'Shlukují se ztráty?', cls, state: st.state, missing: st.missing,
+      headline: `<span class="pill ${res.verdict.kind === 'insufficient' ? 'warn' : 'tag'}">${pill}</span> ${esc(res.verdict.text)}`,
+      body: `<div class="metrics" style="margin-top:4px">
         ${metric('Obchodů W/L', String(res.n), `celkem ${b.trades} obchodů`)}
         ${metric('Dnů', String(b.days), 'denní pravidlo pracuje se dny')}
         ${metric('Win rate', pct(res.conditional.overall.rate), `${res.runs.wins} zisků / ${res.runs.losses} ztrát`)}
         ${metric('Runs test z', res.runs.z == null ? '—' : SQ.fmtZ(res.runs.z), res.runs.valid ? 'záporné = shlukování' : 'nelze vyhodnotit')}
       </div>
-      <p class="muted" style="font-size:12.5px">${sampleNote(res.n)}${notes.length ? ' · ' + esc(notes.join(' · ')) : ''}</p>
-    </div>`;
+      <p class="muted" style="font-size:12.5px">${sampleNote(res.n)}${notes.length ? ' · ' + esc(notes.join(' · ')) : ''}</p>`
+    };
   }
 
-  function runsCard(res) {
+  function runsCard(res, st) {
     const r = res.runs;
-    return `<div class="card">
-      <h2>Runs test</h2>
-      <p class="section-sub">Je střídání zisků a ztrát náhodnější, nebo shlukovanější, než odpovídá tvému win rate? Celá sekvence v čase, přes dny; breakeven nevstupuje.</p>
+    return {
+      id: 'runs', title: 'Runs test', state: st.state, missing: st.missing,
+      headline: esc(`${r.runs} sérií, při náhodě ${r.expected == null ? '—' : num(Math.round(r.expected * 100) / 100)} · z = ${r.z == null ? '—' : SQ.fmtZ(r.z)}`),
+      body: `<p class="section-sub">Je střídání zisků a ztrát náhodnější, nebo shlukovanější, než odpovídá tvému win rate? Celá sekvence v čase, přes dny; breakeven nevstupuje.</p>
       <div class="metrics">
         ${metric('Sérií ve skutečnosti', String(r.runs))}
         ${metric('Očekávaných při náhodě', r.expected == null ? '—' : num(Math.round(r.expected * 100) / 100))}
         ${metric('z', r.z == null ? '—' : SQ.fmtZ(r.z), `|z| ≥ ${num(SQ.Z_SIGNIFICANT)} = průkazné`)}
       </div>
       ${r.reason ? `<div class="obs-warning">⚠ ${esc(r.reason)}</div>` : ''}
-      <p class="muted" style="font-size:12px">Méně sérií než při náhodě (z &lt; 0) = zisky i ztráty chodí v blocích. Víc sérií (z &gt; 0) = střídají se.</p>
-    </div>`;
+      <p class="muted" style="font-size:12px">Méně sérií než při náhodě (z &lt; 0) = zisky i ztráty chodí v blocích. Víc sérií (z &gt; 0) = střídají se.</p>`
+    };
   }
+
+  // Obchodů W/L pod SAMPLE_GREY – z tak malého vzorku se nedá nic vyvodit (stejný práh jako hlavička).
+  const seqMissing = res => `${SAMPLE_GREY - res.n} ${O.plural(SAMPLE_GREY - res.n, 'obchod', 'obchody', 'obchodů')} W/L do ${SAMPLE_GREY} (je ${res.n})`;
 
   function permutationCard(res) {
     const p = res.permutation;
-    return `<div class="card">
-      <h2>Nejdelší série proti náhodě</h2>
-      <p class="section-sub">Pořadí týchž obchodů zamíchané ${p.iterations.toLocaleString('cs-CZ')}×. Jak často náhoda vyrobí stejně dlouhou nebo delší sérii ztrát jako tvoje nejdelší?</p>
+    return {
+      id: 'perm', title: 'Nejdelší série proti náhodě', state: O.bySample(res.n), missing: seqMissing(res),
+      headline: esc(`nejdelší série ztrát ${res.longestLoss} · náhoda ji vyrobí v ${p.p == null ? '—' : pct(p.p)}`),
+      body: `<p class="section-sub">Pořadí týchž obchodů zamíchané ${p.iterations.toLocaleString('cs-CZ')}×. Jak často náhoda vyrobí stejně dlouhou nebo delší sérii ztrát jako tvoje nejdelší?</p>
       <div class="metrics">
         ${metric('Nejdelší série ztrát', String(res.longestLoss))}
         ${metric('Nejdelší série zisků', String(res.longestWin))}
         ${metric('Náhoda ji vyrobí', p.p == null ? '—' : pct(p.p), `${p.atLeast.toLocaleString('cs-CZ')} z ${p.iterations.toLocaleString('cs-CZ')} zamíchání`)}
       </div>
-      <p class="muted" style="font-size:12px">Vysoké procento = tak dlouhá série ztrát je při tvém win rate běžná, ne známka „špatného dne“.</p>
-    </div>`;
+      <p class="muted" style="font-size:12px">Vysoké procento = tak dlouhá série ztrát je při tvém win rate běžná, ne známka „špatného dne“.</p>`
+    };
   }
 
   function conditionalCard(res) {
@@ -78,17 +80,19 @@
       const diffText = diff == null ? '—' : (diff > 0 ? '+' : diff < 0 ? '−' : '') + Math.abs(Math.round(diff * 100)) + ' p. b.';
       return `<tr class="${x.n < SAMPLE_GREY ? 'grey' : ''}"><td>${esc(label)}</td><td class="num">${x.n}</td><td class="num">${rate}</td><td class="num">${diffText}</td></tr>`;
     };
-    return `<div class="card">
-      <h2>Podmíněný win rate</h2>
-      <p class="section-sub">Jaký je win rate obchodu po 1, 2, 3 ztrátách za sebou – a po 1, 2, 3 ziscích? Počítá se uvnitř dne (série se na začátku dne nuluje), protože denní pravidlo vidí jen svůj den. Ploché řádky = žádné shlukování.</p>
+    const after1 = c.afterLosses[0];
+    return {
+      id: 'cond', title: 'Podmíněný win rate', state: O.bySample(res.n), missing: seqMissing(res),
+      headline: esc(`celkem ${pct(base)} · po 1 ztrátě ${after1.rate == null ? (after1.n ? `${after1.wins} z ${after1.n}` : '—') : pct(after1.rate)}`),
+      body: `<p class="section-sub">Jaký je win rate obchodu po 1, 2, 3 ztrátách za sebou – a po 1, 2, 3 ziscích? Počítá se uvnitř dne (série se na začátku dne nuluje), protože denní pravidlo vidí jen svůj den. Ploché řádky = žádné shlukování.</p>
       <div class="table-scroll"><table><thead><tr><th>Obchod</th><th class="num">N</th><th class="num">Win rate</th><th class="num">Proti celku</th></tr></thead><tbody>
         ${row('Všechny obchody', c.overall)}
         ${row('První obchod dne', c.firstOfDay)}
         ${c.afterLosses.map(x => row(`Po ${x.k} ${x.k === 1 ? 'ztrátě' : 'ztrátách'} za sebou`, x)).join('')}
         ${c.afterWins.map(x => row(`Po ${x.k} ${x.k === 1 ? 'zisku' : 'ziscích'} za sebou`, x)).join('')}
       </tbody></table></div>
-      <p class="muted" style="font-size:12px">Pod ${SQ.NO_PCT_BELOW} případy bez procent – procento ze dvou případů není údaj. Šedě N &lt; ${SAMPLE_GREY}. Řádky se nesčítají – obchod po 3 ztrátách je zároveň i „po 1“ a „po 2“.</p>
-    </div>`;
+      <p class="muted" style="font-size:12px">Pod ${SQ.NO_PCT_BELOW} případy bez procent – procento ze dvou případů není údaj. Šedě N &lt; ${SAMPLE_GREY}. Řádky se nesčítají – obchod po 3 ztrátách je zároveň i „po 1“ a „po 2“.</p>`
+    };
   }
 
   // ------------------------------------------------------------- krok 2: simulátor dne
@@ -147,8 +151,7 @@
         <td>${input(f.view, val, 'vypnuto', f.unit === 'R' ? '0.5' : '1')} <span class="muted">${esc(f.unit)}</span></td>
         <td class="muted">${usd}</td></tr>`;
     }).join('');
-    return `<div class="card">
-      <h2>Simulátor dne</h2>
+    return `<div>
       <p class="section-sub">Skutečný sled obchodů den po dni, znovu pod pravidlem. Pravidlo nemění ceny – jen odřízne konec dne. Posuzuje se podle rozdílu mezi ušetřenými ztrátami a zahozenými zisky.</p>
       <div class="metrics">
         ${metric('Dnů', String(sim.days.length), sim.enoughDays ? '' : `pod ${DS.MIN_DAYS} dnů jen popis`)}
@@ -179,7 +182,7 @@
     const ofAcc = v => (acc && k && v != null ? ` <span class="muted">(${num(r2(v * k / acc * 100))} % účtu)</span>` : '');
     const a = sim.none, b = sim.rule;
     if (!sim.active) {
-      return `<div class="card">
+      return `<div style="margin-top:18px">
         <h2>Skutečnost <span class="muted" style="font-weight:400">· žádné pravidlo</span></h2>
         <div class="metrics">
           ${metric('Celkové P/L', fmtR(a.totalR), fmtUsd(a.totalR, k))}
@@ -197,7 +200,7 @@
     const top = sim.topDays.length
       ? `Bez ${sim.topDays.length === 1 ? 'dne' : 'dvou dnů'}, které pravidlo změnilo nejvíc (${sim.topDays.map(d => esc(czDate(d.date))).join(', ')}), by čistý přínos byl <b>${both(sim.netWithoutTopR, k)}</b>.`
       : '';
-    return `<div class="card">
+    return `<div style="margin-top:18px">
       <h2>Bez pravidla vs. pod pravidlem</h2>
       <p class="section-sub">N = <b>${sim.days.length} dnů</b> (pravidlo pracuje se dny, ne s obchody). ${sim.enoughDays ? '' : `<span class="sample warn">⚠ pod ${DS.MIN_DAYS} dnů – jen popis toho, co se stalo, ne základ pro nastavení</span>`}</p>
       <div class="table-scroll"><table><thead><tr><th></th><th class="num">Bez pravidla</th><th class="num">Pod pravidlem</th><th class="num">Rozdíl</th></tr></thead><tbody>
@@ -237,19 +240,26 @@
       <td class="num">${d.cut ? both(d.diffR, k) : '—'}</td>
       <td>${d.cut ? `po ${d.stopAfter + 1}. obchodu · ${esc(REASON_TEXT[d.reason] || d.reason)} · nevzato ${d.skipped}` : ''}</td>
     </tr>`).join('');
-    return `<div class="card">
-      <h2>Po dnech</h2>
-      <p class="section-sub">Co den udělal ve skutečnosti, co by udělal pod pravidlem a rozdíl – ať je vidět, jestli celkový výsledek nestojí na jednom dvou dnech. ┤ = konec dne podle pravidla, přeškrtnuté = nevzato. Šedě dny, které pravidlo nezměnilo.</p>
-      <div class="table-scroll"><table><thead><tr><th>Den</th><th>Sled</th><th class="num">Skutečnost</th><th class="num">Pod pravidlem</th><th class="num">Rozdíl</th><th>Utnuto</th></tr></thead><tbody>${rows}</tbody></table></div>
-    </div>`;
+    return `<p class="section-sub">Co den udělal ve skutečnosti, co by udělal pod pravidlem a rozdíl – ať je vidět, jestli celkový výsledek nestojí na jednom dvou dnech. ┤ = konec dne podle pravidla, přeškrtnuté = nevzato. Šedě dny, které pravidlo nezměnilo.</p>
+      <div class="table-scroll"><table><thead><tr><th>Den</th><th>Sled</th><th class="num">Skutečnost</th><th class="num">Pod pravidlem</th><th class="num">Rozdíl</th><th>Utnuto</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
-  function simSection(ctx) {
+  function simSections(ctx, va) {
     const sim = DS.simulate(ctx.records, rulesFromViews(ctx.views), { ...options(ctx), unitUSD: ctx.views.riskUnitUSD });
+    const st = O.simState(sim, va);
+    const head = { id: 'sim', title: 'Simulátor dne', state: st.state, missing: st.missing, headline: esc(st.headline) };
     if (sim.unit.usd == null) {
-      return setupCard(sim, ctx) + '<div class="card"><p class="muted">Bez obchodu na SL s pnlRaw nejde určit 1 R – zadej ho ručně.</p></div>';
+      return [{ ...head, body: setupCard(sim, ctx) + '<p class="muted">Bez obchodu na SL s pnlRaw nejde určit 1 R – zadej ho ručně.</p>' }];
     }
-    return setupCard(sim, ctx) + resultCard(sim, ctx) + dayTable(sim, ctx);
+    const out = [{ ...head, body: setupCard(sim, ctx) + resultCard(sim, ctx) }];
+    if (sim.days.length) {
+      out.push({
+        id: 'days', title: 'Po dnech', state: st.state, missing: st.missing,
+        headline: esc(sim.active ? `${sim.cutDays} z ${sim.days.length} dnů utnuto` : `${sim.days.length} ${O.plural(sim.days.length, 'den', 'dny', 'dnů')} · bez pravidla`),
+        body: dayTable(sim, ctx)
+      });
+    }
+    return out;
   }
 
   // ------------------------------------------------------------- krok 3: mřížka variant
@@ -274,9 +284,10 @@
     return out.join(' ');
   }
 
-  function variantsCard(ctx, seqVerdict) {
-    const res = VA.computeVariants(ctx.records, { ...options(ctx), unitUSD: ctx.views.riskUnitUSD });
-    if (!res.none) return '';
+  function variantsCard(ctx, seqVerdict, res) {
+    const st = O.variantsState(res);
+    const meta = { id: 'variants', title: 'Mřížka variant', state: st.state, missing: st.missing, headline: esc(st.headline) };
+    if (st.state === 'na') return meta;
     const k = usdPerR({ unit: res.unit, contracts: res.contracts }, ctx.views);
     const enough = res.enoughDays;
     const cols = enough ? 9 : 6;
@@ -309,23 +320,32 @@
     const gate = enough
       ? `<p class="section-sub">N = <b>${res.days} dnů</b>. Ke každé variantě vedle sebe čistý přínos, max drawdown a nejhorší den – Lab nevybírá vítěze a neřadí podle jedné metriky. Zvýrazněná je jen <b>stabilní oblast</b> (aspoň ${VA.STABLE_MIN_RUN} sousední hodnoty, které projdou „bez jednoho dne“ a mají stejné znaménko čistého přínosu) a označené jsou varianty, které neobstojí.</p>`
       : `<div class="card warn-card slim" style="margin:0 0 12px"><b>Pod ${VA.MIN_DAYS} dny se nic nehodnotí.</b> Data mají ${res.days} dnů, chybí ${res.missingDays}. Níže je jen to, co se stalo – bez stabilní oblasti, bez „bez jednoho dne“ a bez časového rozdělení. Pravidlo pracuje se dny, takže vzorek je ${res.days}, ne počet obchodů.</div>`;
-    return `<div class="card">
-      <h2>Mřížka variant</h2>
-      ${gate}
+    return {
+      ...meta,
+      body: `${gate}
       ${negEdge}
       ${seqNote}
       <div class="table-scroll"><table><thead>${head}</thead><tbody>${control}${body}</tbody></table></div>
-      <p class="muted" style="font-size:12px">Každé pravidlo zvlášť; kombinace víc parametrů najednou se nehledají (spec §7). ${enough ? '„Bez jednoho dne“ = varianta přepočtená ' + res.days + '× vždy bez jednoho dne; nespolehlivá je, když se po vynechání kteréhokoli dne čistý přínos obrátí nebo zmizí – pak stojí na tom dni, ne na pravidle. „1. / 2. polovina“ = čistý přínos v první a druhé polovině dnů; nedrží v čase, když se znaménko liší. Osamělá = kladná varianta, jejíž sousedé nepřidávají – šum. ' : ''}Šedě varianty, které na datech nic neutnuly.</p>
-    </div>`;
+      <p class="muted" style="font-size:12px">Každé pravidlo zvlášť; kombinace víc parametrů najednou se nehledají (spec §7). ${enough ? '„Bez jednoho dne“ = varianta přepočtená ' + res.days + '× vždy bez jednoho dne; nespolehlivá je, když se po vynechání kteréhokoli dne čistý přínos obrátí nebo zmizí – pak stojí na tom dni, ne na pravidle. „1. / 2. polovina“ = čistý přínos v první a druhé polovině dnů; nedrží v čase, když se znaménko liší. Osamělá = kladná varianta, jejíž sousedé nepřidávají – šum. ' : ''}Šedě varianty, které na datech nic neutnuly.</p>`
+    };
   }
 
   function render(ctx) {
     const res = SQ.computeSequence(ctx.records, options(ctx));
-    return heroCard(res, ctx)
-      + `<div class="two-col even">${runsCard(res)}${permutationCard(res)}</div>`
-      + conditionalCard(res)
-      + simSection(ctx)
-      + variantsCard(ctx, res.verdict)
+    const va = VA.computeVariants(ctx.records, { ...options(ctx), unitUSD: ctx.views.riskUnitUSD });
+    const st = O.seriesState(res);
+    // Mimo sekce, ať je vidět i se vším sbaleným.
+    const setupWarn = ctx.views.setupCode
+      ? '<div class="obs-warning">⚠ Je zapnutý filtr setupu – sekvence vynechává obchody, které mezi nimi proběhly. Pro otázku denního stopu ber celý den bez filtru setupu.</div>'
+      : '';
+    return setupWarn + sections('risk', [
+      heroCard(res, ctx, st),
+      runsCard(res, st),
+      permutationCard(res),
+      conditionalCard(res),
+      ...simSections(ctx, va),
+      variantsCard(ctx, res.verdict, va)
+    ], ctx.views)
       + '<p class="muted" style="font-size:12px">Dva deníky vedle sebe přijdou v dalším kroku.</p>';
   }
 

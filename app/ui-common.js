@@ -48,5 +48,40 @@
     return L.labelOf('ENTRY_LEVEL', key);
   }
 
-  window.LabUI = { esc, pct, num, signedNum, czDate, STATUS_LABEL, SAMPLE_WARN, SAMPLE_GREY, recordCells, itemsTable, metric, sampleNote, levelLabel };
+  // ------------------------------------------------------------- sekce obrazovek
+
+  const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const STATE_TITLE = { ok: 'ví se – vzorek projde prahem analýzy', weak: 'zatím slabé – spočítatelné, ale pod prahem', na: 'nejde – chybí vstup' };
+
+  function stateIcon(state) {
+    return `<span class="st st-${esc(state)}" title="${esc(STATE_TITLE[state])}">${esc(window.LabOverview.ICON[state])}</span>`;
+  }
+
+  // Jedna sekce obrazovky: s = { id, title, letter?, state, headline (HTML),
+  // body (HTML), missing (text), cls? }. Výchozí stav sbaleno; hlavička nese
+  // hlavní číslo nebo verdikt, ať se sbalením nic neztratí. Analýza, která
+  // nemůže běžet, se nekreslí – jen jeden řádek, co chybí, a odkaz na blok
+  // „Co vyplnit“ na úvodní obrazovce.
+  function section(screen, s, views) {
+    const letter = s.letter ? `<span class="letter">${esc(s.letter)}</span>` : '';
+    if (s.state === 'na') {
+      return `<div class="card section section-na ${esc(s.cls || '')}" data-section="${esc(s.id)}">
+        <div class="section-head">${stateIcon('na')}${letter}<span class="section-title">${esc(s.title)}</span>
+          <span class="section-headline">Zatím nejde — chybí ${esc(s.missing)}</span>
+          <a href="#" class="goto" data-goto="overview" data-anchor="fill">Co vyplnit →</a></div>
+      </div>`;
+    }
+    const open = window.LabViews.isOpen(views, screen, s.id);
+    return `<details class="card section ${esc(s.cls || '')}" data-section="${esc(s.id)}" data-screen="${esc(screen)}"${open ? ' open' : ''}>
+      <summary>${CHEV}${stateIcon(s.state)}${letter}<span class="section-title">${esc(s.title)}</span><span class="section-headline">${s.headline || ''}</span></summary>
+      <div class="section-body">${s.body}</div>
+    </details>`;
+  }
+
+  // Pořadí: nejdřív co má vzorek, pak slabé, pak nespuštěné.
+  function sections(screen, list, views) {
+    return window.LabOverview.byState(list.filter(Boolean)).map(s => section(screen, s, views)).join('');
+  }
+
+  window.LabUI = { esc, pct, num, signedNum, czDate, STATUS_LABEL, SAMPLE_WARN, SAMPLE_GREY, recordCells, itemsTable, metric, sampleNote, levelLabel, stateIcon, section, sections };
 })();

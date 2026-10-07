@@ -7,11 +7,12 @@
 (function () {
   const N = window.LabNormalize;
   const H = window.LabHealth;
+  const V = window.LabViews;
   const UI = window.LabUI;
   const { esc, czDate } = UI;
   const api = window.labAPI;
   const $ = id => document.getElementById(id);
-  const SCREENS = ['health', 'sltp', 'levels', 'risk'];
+  const SCREENS = ['overview', 'health', 'sltp', 'levels', 'risk'];
 
   const state = {
     views: {},
@@ -44,7 +45,15 @@
   }
 
   function currentScreen() {
-    return SCREENS.includes(state.views.screen) ? state.views.screen : 'health';
+    return SCREENS.includes(state.views.screen) ? state.views.screen : 'overview';
+  }
+
+  function goTo(screen, anchor) {
+    setView('screen', screen);
+    render();
+    const el = anchor && document.getElementById(anchor);
+    if (el) el.scrollIntoView({ block: 'start' });
+    else window.scrollTo(0, 0);
   }
 
   // ------------------------------------------------------------- načtení
@@ -233,15 +242,27 @@
   // ------------------------------------------------------------- události
 
   function bind() {
-    document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => {
-      setView('screen', b.dataset.screen);
-      render();
-      window.scrollTo(0, 0);
-    }));
+    document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => goTo(b.dataset.screen)));
+    // Odkazy uvnitř obrazovek: „→ SL a TP“, „Co vyplnit →“.
+    $('content').addEventListener('click', e => {
+      const link = e.target.closest && e.target.closest('a[data-goto]');
+      if (!link) return;
+      e.preventDefault();
+      goTo(link.dataset.goto, link.dataset.anchor);
+    });
+    // Rozbalené sekce se pamatují per obrazovka (views.json). 'toggle' nebublá → capture.
+    $('content').addEventListener('toggle', e => {
+      const d = e.target;
+      if (!d.matches || !d.matches('details.section[data-screen]')) return;
+      const { screen, section } = d.dataset;
+      if (V.isOpen(state.views, screen, section) === d.open) return;
+      setView('openSections', V.withSection(state.views, screen, section, d.open));
+    }, true);
     $('journalSelect').addEventListener('change', async e => {
-      setView('journalId', e.target.value);
       // Jednotka R a velikost pozice patří k deníku – u jiného by byly nesmysl.
-      for (const key of ['instrument', 'setupCode', 'riskUnitUSD', 'riskPosition']) delete state.views[key];
+      // Rozbalené sekce zůstávají.
+      state.views = V.forJournalChange(state.views);
+      setView('journalId', e.target.value);
       await loadJournal(); render();
     });
     $('showOutsideIndex').addEventListener('change', async e => {
@@ -303,6 +324,8 @@
   async function init() {
     bind();
     await loadState();
+    // Po spuštění se vždy otevře „Co teď vím“.
+    state.views.screen = 'overview';
     await reloadAll();
   }
 

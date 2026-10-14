@@ -12,17 +12,21 @@
   // Číselná nastavení analýz a jejich povolený rozsah. risk* = pravidlo
   // simulátoru dne (prázdné = vypnuté), jednotka R, velikost pozice a účtu.
   const VIEW_NUMBERS = {
-    levelTolerance: [0, 20], sweepTargetR: [0.25, 10],
+    sweepTargetR: [0.25, 10], levelBin: [1, 4],
     riskDailyLoss: [0.1, 100], riskConsecutiveSL: [1, 50], riskDailySL: [1, 50], riskMaxTrades: [1, 100],
     riskDailyTarget: [0.1, 100], riskGiveBack: [0.1, 100],
     riskUnitUSD: [0.01, 1e6], riskPosition: [1, 1000], riskAccount: [1, 1e9]
   };
-  const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex']);
-  const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS), 'openSections'];
+  // Jen některé hodnoty: sloučení rozložení hladin po 1 / 2 / 4 t (jen zobrazení).
+  const VIEW_CHOICES = { levelBin: [1, 2, 4] };
+  // navDetailsClosed = skupina „Podrobnosti" v navigaci sbalená (výchozí rozbalená –
+  // ukládá se jen sbalení, false se v pohledech neukládá).
+  const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navDetailsClosed']);
+  const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navDetailsClosed', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS), 'openSections'];
 
   // Rozbalené sekce, zvlášť pro každou obrazovku: { sltp: ['mae', 'grid'], … }.
   // Výchozí stav je sbaleno – ukládá se jen to, co uživatel rozbalil.
-  const SECTION_SCREENS = ['health', 'sltp', 'levels', 'risk'];
+  const SECTION_SCREENS = ['health', 'sltp', 'levels', 'context', 'risk'];
   const SECTION_ID = /^[a-z0-9-]{1,40}$/;
   const MAX_OPEN = 40;
 
@@ -55,7 +59,7 @@
       else if (VIEW_NUMBERS[key]) {
         const n = Number(v);
         const [min, max] = VIEW_NUMBERS[key];
-        if (Number.isFinite(n) && n >= min && n <= max) out[key] = n;
+        if (Number.isFinite(n) && n >= min && n <= max && (!VIEW_CHOICES[key] || VIEW_CHOICES[key].includes(n))) out[key] = n;
       } else out[key] = String(v).slice(0, 1000);
     }
     return out;

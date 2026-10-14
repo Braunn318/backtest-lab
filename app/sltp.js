@@ -288,6 +288,27 @@
     };
   }
 
+  // ------------------------------------------------------------- souhrn SL a TP
+
+  // Nejčastější SL v ticích (slTicks obchodu). Remíza = všechny hodnoty se
+  // stejným počtem, vzestupně – Lab mezi nimi nevybírá.
+  function slMode(perf) {
+    const counts = new Map();
+    for (const r of perf) if (has(r.slTicks)) counts.set(r.slTicks, (counts.get(r.slTicks) || 0) + 1);
+    const count = counts.size ? Math.max(...counts.values()) : 0;
+    const values = [...counts.entries()].filter(([, c]) => c === count && count > 0).map(([v]) => v).sort((a, b) => a - b);
+    return { values, count, n: [...counts.values()].reduce((a, c) => a + c, 0) };
+  }
+
+  // Kam cena pokračovala po výstupu na targetu: medián zapsaného pohybu po
+  // výstupu (postExitFavorableTicks; 0 = „dál už nic nebylo" je měření).
+  // Stejná hodnota jako sloupec „Na stole" u obchodu (tradeRow.leftOnTable).
+  function tpAfter(perf) {
+    const targets = perf.filter(r => r.result === 'target');
+    const values = targets.map(r => r.postExitFavorableTicks).filter(has);
+    return { n: values.length, targets: targets.length, p50: median(values) };
+  }
+
   // ------------------------------------------------------------- celek
 
   function computeSlTp(perf, options = {}) {
@@ -298,6 +319,8 @@
         mfe: perf.filter(r => r.mfe.tier === 'derived').length,
         mae: perf.filter(r => r.mae.tier === 'derived').length
       },
+      slMode: slMode(perf),
+      tpAfter: tpAfter(perf),
       maeWinners: maeWinners(perf),
       mfeStopped: mfeStopped(perf),
       sweep: slSweep(perf, options),
@@ -307,6 +330,6 @@
 
   return {
     SL_RESERVE_TICKS, SWEEP_SL, GRID_SL, GRID_TP_R, SAMPLE_WARN, SAMPLE_GREY, SWEEP_SAMPLE_WARN,
-    percentile, median, tradeRow, maeWinners, mfeStopped, slSweep, gridOutcome, gridResult, grid, computeSlTp
+    percentile, median, tradeRow, slMode, tpAfter, maeWinners, mfeStopped, slSweep, gridOutcome, gridResult, grid, computeSlTp
   };
 }));

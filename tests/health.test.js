@@ -64,24 +64,24 @@ test('použitelnost: plánovaný cíl – MANUAL_EXIT a cena z výstupu se nepo�
   assert.equal(usable(h, 'plannedTarget').n, 1);
 });
 
-test('použitelnost: síla hladin počítá řádky s místem (cena nebo vzdálenost)', () => {
+test('použitelnost: hladiny počítají řádky s polohou a naměřenou dráhou', () => {
   const h = health([
-    trade({ srTarget: [{ level: 'VAL', price: 7830, ticksFromEntry: null }, { level: 'VWAP', price: null, ticksFromEntry: null }] }),
-    trade({ srTarget: [{ level: 'VAH', price: null, ticksFromEntry: 10 }] })
+    trade({ nearLevels: [{ level: 'VAL', price: 7830 }, { level: 'VWAP', price: null, legacySide: 'TG' }] }),
+    trade({ nearLevels: [{ level: 'VAH', price: null, ticksFromEntry: 10, legacySide: 'TG' }] })
   ]);
-  assert.equal(usable(h, 'levelsTarget').n, 2);
-  assert.equal(usable(h, 'levelsTarget').m, 3);
-  assert.equal(usable(h, 'levelsTarget').unit, 'řádků');
+  assert.equal(usable(h, 'levels').n, 2);
+  assert.equal(usable(h, 'levels').m, 3);
+  assert.equal(usable(h, 'levels').unit, 'řádků');
 });
 
 test('použitelnost: kontrolní skupina = menší ze skupin žádná / hladina; nevyplněno nevstupuje', () => {
   const h = health([
-    trade(), trade({ srTarget: [], srTargetNone: true }),
-    trade({ srTarget: [{ level: 'VAL', price: 7830, ticksFromEntry: null }] }),
-    trade({ srTarget: [] }), trade({ srTarget: undefined })
+    trade(), trade({ nearLevels: undefined, nearLevelsNone: undefined, srTargetNone: true, srStopLossNone: true }),
+    trade({ nearLevels: [{ level: 'VAL', price: 7830 }] }),
+    trade({ nearLevels: [], nearLevelsNone: false }), trade({ nearLevels: undefined, nearLevelsNone: undefined })
   ]);
   assert.equal(usable(h, 'controlGroup').n, 1);
-  assert.match(usable(h, 'controlGroup').note, /žádná hladina 2 · hladina 1 · nevyplněno 2/);
+  assert.match(usable(h, 'controlGroup').note, /žádná hladina 2 · s hladinou 1 · nevyplněno 2/);
 });
 
 test('fill rate: pod 10 NO_FILL je n/a s důvodem, ne číslo', () => {
@@ -186,8 +186,8 @@ test('úplnost: dopočtená hodnota je vyplněná, ale ukáže se zvlášť', ()
 });
 
 test('neznámé klíče se nahlásí, známé ne', () => {
-  const h = health([trade({ srStopLoss: [{ level: 'OLD_LEVEL', price: 7790, ticksFromEntry: null }], setupCode: 'MY_SETUP' }), trade()]);
-  assert.deepEqual(h.unknownKeys.map(u => `${u.field}:${u.key}`).sort(), ['setupCode:MY_SETUP', 'srStopLoss:OLD_LEVEL']);
+  const h = health([trade({ nearLevels: [{ level: 'OLD_LEVEL', price: 7790 }], setupCode: 'MY_SETUP' }), trade()]);
+  assert.deepEqual(h.unknownKeys.map(u => `${u.field}:${u.key}`).sort(), ['nearLevels:OLD_LEVEL', 'setupCode:MY_SETUP']);
 });
 
 // ---------------------------------------------------------------- C) kontroly 1–10

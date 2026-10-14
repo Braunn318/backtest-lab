@@ -2,7 +2,7 @@
 // Kostra okna: stav, postranní panel, navigace mezi obrazovkami a hlavička
 // „který deník, kolik záznamů, jaký rozsah dat" (zadání fáze 2 §0.4).
 // Data načítá hlavní proces, předzpracování dělá LabNormalize, výpočty
-// LabHealth / LabSlTp / LabStrength / LabSequence, vykreslení obrazovky LabScreens.*.
+// LabOverview.analyses (jednou za render), vykreslení obrazovky LabScreens.*.
 
 (function () {
   const N = window.LabNormalize;
@@ -12,7 +12,9 @@
   const { esc, czDate } = UI;
   const api = window.labAPI;
   const $ = id => document.getElementById(id);
-  const SCREENS = ['overview', 'health', 'sltp', 'levels', 'risk'];
+  const SM = window.LabSummary;
+  // Navigace (ZADANI_LAB_SOUHRN §2.1): Souhrn · Podrobnosti ▸ · Data.
+  const SCREENS = SM.NAV.flatMap(x => x.screen ? [x.screen] : x.screens);
 
   const state = {
     views: {},
@@ -45,7 +47,7 @@
   }
 
   function currentScreen() {
-    return SCREENS.includes(state.views.screen) ? state.views.screen : 'overview';
+    return SCREENS.includes(state.views.screen) ? state.views.screen : SM.START_SCREEN;
   }
 
   function goTo(screen, anchor) {
@@ -122,7 +124,12 @@
 
   function renderSidebar() {
     const screen = currentScreen();
-    document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
+    document.querySelectorAll('#nav button[data-screen]').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
+    // Skupina Podrobnosti: sbalení se pamatuje (views.navDetailsClosed). Sbalená
+    // skupina nechá vidět jen právě otevřenou obrazovku.
+    const closed = !!state.views.navDetailsClosed;
+    $('navDetails').setAttribute('aria-expanded', String(!closed));
+    $('navDetailsList').classList.toggle('collapsed', closed);
 
     const journals = visibleJournals();
     fillSelect($('journalSelect'),
@@ -167,9 +174,7 @@
       ? 'Hypotetický výsledek („co by to udělalo“), ne exekuce – jako v deníku ve výchozím stavu mimo výkon. No fill zůstávají ve fill rate vždy.'
       : 'V deníku nejsou žádné no fill ani vědomě vynechané obchody vyplněné jako obchod.';
 
-    $('levelTolerance').value = state.views.levelTolerance != null ? state.views.levelTolerance : window.LabStrength.DEFAULT_TOLERANCE;
     $('sweepTargetR').value = state.views.sweepTargetR != null ? state.views.sweepTargetR : 1;
-    $('settingTolerance').style.display = screen === 'levels' ? '' : 'none';
     $('settingTargetR').style.display = screen === 'sltp' ? '' : 'none';
 
     $('sourcePath').textContent = state.sourceDir || '—';
@@ -242,8 +247,9 @@
   // ------------------------------------------------------------- události
 
   function bind() {
-    document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => goTo(b.dataset.screen)));
-    // Odkazy uvnitř obrazovek: „→ SL a TP“, „Co vyplnit →“.
+    document.querySelectorAll('#nav button[data-screen]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.screen)));
+    $('navDetails').addEventListener('click', () => { setView('navDetailsClosed', !state.views.navDetailsClosed); renderSidebar(); });
+    // Odkazy uvnitř obrazovek: „Podrobnosti →“, „Co vyplnit → Data“.
     $('content').addEventListener('click', e => {
       const link = e.target.closest && e.target.closest('a[data-goto]');
       if (!link) return;
@@ -277,10 +283,6 @@
     for (const key of ['includeSkipLive', 'includeNoFill', 'includeSkipped']) {
       $(key).addEventListener('change', e => { setView(key, e.target.checked); render(); });
     }
-    $('levelTolerance').addEventListener('change', e => {
-      const v = Number(e.target.value);
-      setView('levelTolerance', Number.isFinite(v) && v >= 0 && v <= 20 ? v : undefined); render();
-    });
     $('sweepTargetR').addEventListener('change', e => {
       const v = Number(e.target.value);
       setView('sweepTargetR', Number.isFinite(v) && v >= 0.25 && v <= 10 ? v : undefined); render();
@@ -324,8 +326,8 @@
   async function init() {
     bind();
     await loadState();
-    // Po spuštění se vždy otevře „Co teď vím“.
-    state.views.screen = 'overview';
+    // Po spuštění se vždy otevře Souhrn.
+    state.views.screen = SM.START_SCREEN;
     await reloadAll();
   }
 

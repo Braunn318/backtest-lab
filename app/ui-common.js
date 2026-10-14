@@ -8,7 +8,7 @@
   // Prázdné zůstane prázdné (pomlčka), nikdy 0.
   const num = v => (v == null ? '—' : Number.isInteger(v) ? String(v) : (Math.round(v * 100) / 100).toString().replace('.', ','));
   const signedNum = v => (v == null ? '—' : (v > 0 ? '+' : '') + num(v));
-  const STATUS_LABEL = { pass: 'PROŠLO', fail: 'SELHALO', warn: 'VAROVÁNÍ', na: 'N/A' };
+  const STATUS_LABEL = { pass: 'PROŠLO', fail: 'SELHALO', warn: 'VAROVÁNÍ', info: 'INFORMACE', na: 'N/A' };
   const SAMPLE_WARN = 30;
   const SAMPLE_GREY = 10;
 
@@ -61,14 +61,14 @@
   // body (HTML), missing (text), cls? }. Výchozí stav sbaleno; hlavička nese
   // hlavní číslo nebo verdikt, ať se sbalením nic neztratí. Analýza, která
   // nemůže běžet, se nekreslí – jen jeden řádek, co chybí, a odkaz na blok
-  // „Co vyplnit“ na úvodní obrazovce.
+  // „Co vyplnit“ na obrazovce Data.
   function section(screen, s, views) {
     const letter = s.letter ? `<span class="letter">${esc(s.letter)}</span>` : '';
     if (s.state === 'na') {
       return `<div class="card section section-na ${esc(s.cls || '')}" data-section="${esc(s.id)}">
         <div class="section-head">${stateIcon('na')}${letter}<span class="section-title">${esc(s.title)}</span>
           <span class="section-headline">Zatím nejde — chybí ${esc(s.missing)}</span>
-          <a href="#" class="goto" data-goto="overview" data-anchor="fill">Co vyplnit →</a></div>
+          <a href="#" class="goto" data-goto="health" data-anchor="fill">Co vyplnit → Data</a></div>
       </div>`;
     }
     const open = window.LabViews.isOpen(views, screen, s.id);

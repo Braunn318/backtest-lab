@@ -99,6 +99,7 @@ tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--blue)}
 .pill.fail{background:rgba(var(--red-rgb),.15);color:var(--red)}
 .pill.warn{background:rgba(var(--yellow-rgb),.18);color:var(--yellow)}
 .pill.na{background:rgba(var(--tint-rgb),.07);color:var(--muted)}
+.pill.info{background:rgba(var(--blue-rgb),.15);color:var(--blue)}
 .pill.side.long{background:rgba(var(--blue-rgb),.15);color:var(--blue)}
 .pill.side.short{background:rgba(var(--yellow-rgb),.18);color:var(--yellow)}
 .pill.tag{background:rgba(var(--blue-rgb),.15);color:var(--blue);font-size:10px;padding:1px 7px}
@@ -196,15 +197,59 @@ a.goto:hover{text-decoration:underline}
 .section-na .section-title{color:var(--muted)}
 .section-na .section-headline{color:var(--muted)}
 .card.section.hero{border-width:1.5px}
-/* Úvodní obrazovka „Co teď vím". */
-.ov-legend{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px}
-.ov-sep{display:inline-block;width:10px}
-.ov-row{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:start;padding:12px 2px;border-bottom:1px solid var(--line)}
-.ov-row:last-child{border-bottom:0}
-.ov-text{font-size:14.5px;line-height:1.5}
-.st-row-na .ov-text{color:var(--text2)}
-.ov-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;white-space:nowrap}
-.ov-n{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+/* Obrazovka Kontext: dimenze uvnitř sekce skupiny; podnadpis tabulky v sekci. */
+.dim{margin:0 0 22px}
+.dim:last-child{margin-bottom:0}
+.dim-head{display:flex;align-items:center;gap:10px;margin:0 0 8px;flex-wrap:wrap}
+.dim-head .muted{font-size:12.5px}
+.dim-na{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px dashed var(--line);font-size:13px;margin:0}
+.sub-title{font-size:13.5px;font-weight:800;margin:20px 0 8px}
+/* Navigace: skupina Podrobnosti (sbalitelná) a Data. */
+.nav .nav-group{font-weight:700;color:var(--text2);display:flex;align-items:center;justify-content:space-between}
+.nav .nav-chev{display:inline-block;transition:transform .18s ease;color:var(--muted)}
+.nav .nav-group[aria-expanded="true"] .nav-chev{transform:rotate(90deg)}
+.nav-sub{padding-left:10px;border-left:1px solid var(--line);margin-left:10px}
+.nav-sub.collapsed>button:not(.active){display:none}
+.nav-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:12px 12px 4px}
+/* Souhrn (ZADANI_LAB_SOUHRN §2.2) – musí se vejít na 1920 × 1080 bez scrollování. */
+.sum-card{margin-bottom:14px}
+.sum-result{padding:14px 16px}
+.sum-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.sum-tile{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.sum-tile-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.sum-tile-value{font-size:30px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sum-tile-note{color:var(--muted);font-size:11.5px;margin-top:2px}
+.sum-equity{display:flex;align-items:center;gap:12px;margin-top:10px}
+.sum-spark{flex:1;height:56px;min-width:0}
+.sum-spark-line{fill:none;stroke:var(--blue);stroke-width:2;vector-effect:non-scaling-stroke}
+.sum-spark-zero{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.sum-spark-empty{flex:1;font-size:12px}
+.sum-equity-end{font-weight:800;font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sum-questions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.sum-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.sum-q{display:flex;flex-direction:column;padding:14px 16px;margin-bottom:14px}
+.sum-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sum-title{font-weight:800;font-size:15px}
+.sum-sub{font-size:12px}
+.sum-big{font-size:34px;font-weight:800;margin-top:8px;font-variant-numeric:tabular-nums;line-height:1.1}
+.sum-label{color:var(--muted);font-size:11.5px;margin-top:2px}
+.sum-text{font-size:13.5px;line-height:1.45;margin:8px 0 6px;color:var(--text)}
+.sum-foot{margin-top:auto;padding-top:4px}
+.sum-card.is-na{border-style:dashed;box-shadow:none}
+.sum-card.is-na .sum-big,.sum-card.is-na .sum-title,.sum-card.is-na .sum-text{color:var(--muted)}
+.sum-context{padding:12px 16px}
+.sum-ctx-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.sum-ctx-row:first-of-type{border-top:0}
+.sum-weak{font-size:12px;white-space:nowrap}
+.sum-data{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:11px 16px;font-size:13.5px}
+.sum-data .sum-foot{margin:0 0 0 auto;padding:0}
+.sum-dot{color:var(--muted)}
+@media(max-width:1100px){.sum-tiles,.sum-questions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Hladiny: volba sloučení a rozpad podle typu. */
+.section-tools{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 10px}
+.bin-select select{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:4px 8px;border-radius:8px;margin-left:6px}
+details.split{border-top:1px solid var(--line);padding:8px 0}
+details.split>summary{cursor:pointer;font-size:13.5px}
 .fill-list{margin:0;padding-left:22px;line-height:1.55;font-size:13.5px}
 .fill-list li{margin-bottom:8px}
 .fill-hint{font-size:12px}
@@ -219,11 +264,18 @@ a.goto:hover{text-decoration:underline}
     <div class="brand-sub">Čte deník, nic nezapisuje</div>
 
     <nav class="nav" id="nav">
-      <button type="button" data-screen="overview">Co teď vím<span class="q">Co se ví a jak moc?</span></button>
-      <button type="button" data-screen="health">Zdraví dat<span class="q">Sbírám použitelná data?</span></button>
-      <button type="button" data-screen="sltp">SL a TP<span class="q">Zadávám je správně?</span></button>
-      <button type="button" data-screen="levels">Síla hladin<span class="q">Drží hladiny proti TP a SL?</span></button>
-      <button type="button" data-screen="risk">Denní risk<span class="q">Pomáhá denní stop?</span></button>
+      <button type="button" data-screen="summary">Souhrn<span class="q">Co se ví a jak moc?</span></button>
+      <button type="button" class="nav-group" id="navDetails" aria-expanded="true" aria-controls="navDetailsList">Podrobnosti <span class="nav-chev">▸</span></button>
+      <div class="nav-sub" id="navDetailsList">
+        <button type="button" data-screen="sltp">SL a TP<span class="q">Zadávám je správně?</span></button>
+        <button type="button" data-screen="levels">Hladiny<span class="q">Co hladiny v obchodu dělají?</span></button>
+        <button type="button" data-screen="context">Kontext<span class="q">V jakém kontextu to vychází?</span></button>
+        <button type="button" data-screen="risk">Denní risk<span class="q">Pomáhá denní stop?</span></button>
+      </div>
+      <div class="nav-label">Data</div>
+      <div class="nav-sub">
+        <button type="button" data-screen="health">Zdraví dat a co vyplnit<span class="q">Sbírám použitelná data?</span></button>
+      </div>
     </nav>
 
     <div class="side-group">
@@ -265,12 +317,6 @@ a.goto:hover{text-decoration:underline}
       <div class="hint">Kolik zachráněných stopek by došlo na tenhle cíl vůči novému SL.</div>
     </div>
 
-    <div class="side-group" id="settingTolerance">
-      <label for="levelTolerance">Tolerance „zastavila“ (ticky)</label>
-      <input type="number" id="levelTolerance" min="0" max="20" step="1">
-      <div class="hint">Excursion do ± tolika ticků od hladiny = cena se o ni opřela.</div>
-    </div>
-
     <div class="side-group">
       <span class="side-label">Zdroj dat (jen čtení)</span>
       <div class="path" id="sourcePath">…</div>
@@ -289,8 +335,8 @@ a.goto:hover{text-decoration:underline}
   <main class="main">
     <div class="topbar">
       <div>
-        <h1 id="screenTitle">Co teď vím</h1>
-        <div class="sub" id="screenQuestion">Co se z dnešních dat ví a jak moc</div>
+        <h1 id="screenTitle">Souhrn</h1>
+        <div class="sub" id="screenQuestion">Co se z dat ví a jak moc</div>
       </div>
       <button class="btn" id="reload" type="button">Načíst znovu</button>
     </div>
@@ -302,16 +348,19 @@ a.goto:hover{text-decoration:underline}
 <script src="normalize.js"></script>
 <script src="health.js"></script>
 <script src="sltp.js"></script>
+<script src="context.js"></script>
 <script src="strength.js"></script>
 <script src="sequence.js"></script>
 <script src="daysim.js"></script>
 <script src="variants.js"></script>
 <script src="overview.js"></script>
+<script src="summary.js"></script>
 <script src="ui-common.js"></script>
-<script src="ui-overview.js"></script>
+<script src="ui-summary.js"></script>
 <script src="ui-health.js"></script>
 <script src="ui-sltp.js"></script>
 <script src="ui-levels.js"></script>
+<script src="ui-context.js"></script>
 <script src="ui-risk.js"></script>
 <script src="ui.js"></script>
 </body>

@@ -147,11 +147,18 @@
     };
   }
 
-  // Řádky SR hladin s hladinou (bez 'NONE') napříč obchody.
-  function levelRows(perf, field) {
+  // Řádky hladin v blízkosti napříč obchody.
+  function levelRows(perf) {
     const out = [];
-    for (const r of perf) for (const row of r[field]) if (!row.isNone) out.push({ record: r, row });
+    for (const r of perf) for (const row of r.nearLevels) out.push({ record: r, row });
     return out;
+  }
+
+  // Řádek jde do statistiky hladin (LabStrength), když má polohu a k ní
+  // naměřenou dráhu na své straně: nad vstupem MFE, na vstupu a pod ním MAE.
+  function levelRowUsable(x) {
+    const p = x.row.fromEntry;
+    return has(p) && has(p > 0 ? x.record.mfeMeasured : x.record.maeMeasured);
   }
 
   function usabilityRow(key, label, n, m, extra = {}) {
@@ -165,10 +172,9 @@
     const count = (base, test) => base.filter(test).length;
     const winners = p.filter(r => r.isProfitable === true);
     const stopped = p.filter(r => r.isStopped);
-    const tRows = levelRows(p, 'srTarget');
-    const sRows = levelRows(p, 'srStopLoss');
+    const rows = levelRows(p);
     const states = { none: 0, present: 0, unknown: 0 };
-    for (const r of p) states[r.srTargetState]++;
+    for (const r of p) states[r.nearLevelsState]++;
     const fill = fillStats(sets.fillBase);
 
     return [
@@ -184,13 +190,11 @@
         { needs: 'naměřené maximum proti i ve směru', lacks: 'naměřené MFE / pokračování po výstupu' }),
       usabilityRow('plannedTarget', 'Plánovaný cíl (§5.4a, c)', count(p, r => r.plannedTarget && has(r.plannedTarget.price)), p.length,
         { needs: 'cílová hladina s cenou – ne MANUAL_EXIT, ne cena převzatá z výstupu', lacks: 'plánovaná cílová hladina s cenou' }),
-      usabilityRow('levelsTarget', 'Síla hladin proti TP', tRows.filter(x => has(x.row.distanceTicks) && has(x.record.mfeMeasured)).length, tRows.length,
-        { unit: 'řádků', needs: 'SR řádek s cenou nebo vzdáleností + naměřené MFE', lacks: 'cena / vzdálenost SR hladiny od vstupu' }),
-      usabilityRow('levelsSl', 'Síla hladin proti SL', sRows.filter(x => has(x.row.distanceTicks) && has(x.record.maeMeasured)).length, sRows.length,
-        { unit: 'řádků', needs: 'SR řádek s cenou nebo vzdáleností + naměřené MAE', lacks: 'cena / vzdálenost SR hladiny od vstupu' }),
+      usabilityRow('levels', 'Hladiny', rows.filter(levelRowUsable).length, rows.length,
+        { unit: 'řádků', needs: 'hladina v blízkosti s cenou + naměřené MFE (nad vstupem) nebo MAE (na vstupu a pod ním)', lacks: 'cena hladiny v blízkosti' }),
       usabilityRow('controlGroup', 'Kontrolní skupina hladin', Math.min(states.none, states.present), p.length,
-        { needs: 'obchody s vědomě „žádná hladina“ i s hladinou proti TP', lacks: 'vyplněné „žádná hladina v cestě“',
-          note: `žádná hladina ${states.none} · hladina ${states.present} · nevyplněno ${states.unknown} (do porovnání nevstupuje)` }),
+        { needs: 'obchody s vědomě „žádná hladina v blízkosti“ i s hladinou', lacks: 'vyplněné „žádná hladina v blízkosti“',
+          note: `žádná hladina ${states.none} · s hladinou ${states.present} · nevyplněno ${states.unknown} (do porovnání nevstupuje)` }),
       usabilityRow('fillRate', 'Fill rate', fill.enough ? fill.n : 0, sets.fillBase.length,
         { needs: `FILLED / NO_FILL, aspoň ${FILL_WARN_MIN_RECORDS} NO_FILL`, lacks: 'zapsané nenaplněné limitky (NO_FILL)',
           note: fill.reason, rate: fill.rate, filled: fill.filled, noFill: fill.noFill, forecast: false })
@@ -369,7 +373,7 @@
       items: missing.map(r => item(r, `target, exitTicks ${fmt(r.exitTicks)}, postExitFavorableTicks prázdné`)),
       summary: base.length ? `${missing.length} z ${base.length} (${Math.round(share * 100)} %) bez pozorování` : 'žádný target',
       message: status === 'warn'
-        ? `U ${missing.length} obchodů chybí pozorování po výstupu. Ty nemohou rozlišit 'cíl byl optimální' od 'nikdo se nedíval dál' a v mřížce SL × TP budou systematicky hlasovat pro těsnější cíl.`
+        ? `U ${missing.length} obchodů chybí pozorování po výstupu. Ty nemohou rozlišit 'po cíli už cena nepokračovala' od 'nikdo se nedíval dál' a v mřížce SL × TP budou systematicky hlasovat pro těsnější cíl.`
         : null
     };
   }
@@ -432,6 +436,83 @@
     return { ...base, status: 'pass', items: [], summary: statText };
   }
 
+  // ------------------------------------------------------------- kontext (ZADANI_KONTEXT B2, v3 B1)
+  //
+  // Kontroly 14–16 běží nad VŠEMI záznamy výběru (obchody i setupy bez vstupu)
+  // – historická data se neopravují sama, jen se hlásí. Rozhoduje normalizace
+  // (dataCheck, geometrie řádků); tady se jen třídí.
+
+  function checkWrongSide(id, title, code, records, applies) {
+    return simpleCheck(id, title, records,
+      r => r.direction != null && (r.entryPrice != null || r.plannedEntryPrice != null) && applies(r),
+      r => { const issue = r.dataCheck.find(i => i.code === code); return issue ? issue.message : null; });
+  }
+
+  const OUTSIDE = ['BEYOND_STOP', 'BEYOND_TARGET'];
+  const signedTicks = v => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v)) + ' t';
+
+  // 16 – hladina za SL nebo za cílem. Deník hladiny jen měří; poloha za SL /
+  // za cílem je platné měření (jen nevstupuje do úseků mezi SL a cílem) –
+  // proto informace, ne chyba.
+  function checkRowFlags(records) {
+    const items = [];
+    let checked = 0;
+    for (const r of records) {
+      for (const row of r.nearLevels) {
+        if (row.position == null) continue;
+        checked++;
+        if (OUTSIDE.includes(row.position)) {
+          items.push(item(r, `${L.fieldLabel('nearLevels')}: ${row.level} ${fmt(row.price)} leží ${L.POSITION_LABEL[row.position]} (${signedTicks(row.fromEntry)} od vstupu)`));
+        }
+      }
+    }
+    return {
+      id: 16, title: 'Hladiny za SL nebo za cílem',
+      status: !checked ? 'na' : items.length ? 'info' : 'pass', checked, items,
+      summary: checked ? `${items.length} z ${checked} řádků s polohou` : 'žádná hladina s polohou',
+      message: items.length ? 'Jen informace: hladina za SL nebo za cílem je platné měření, jen nevstupuje do úseků mezi SL a cílem.' : null
+    };
+  }
+
+  // 17 – dopočty z cen počítá Lab sám a porovná je s tím, co nese export
+  // deníku. Rozdíl znamená, že se obě implementace rozešly (nebo se data
+  // změnila mimo deník) – Lab dál počítá se svou hodnotou a nic nepřepisuje.
+  function checkDerivedConsistency(records) {
+    const withExport = records.filter(r => r.exported);
+    const base = { id: 17, title: 'Dopočty deníku sedí s přepočtem Labu' };
+    if (!withExport.length) {
+      return { ...base, status: 'na', checked: 0, unverified: 0, items: [], summary: 'export nenese dopočty deníku (starší verze) – není co porovnat' };
+    }
+    const unverified = withExport.filter(r => r.derivedUnverified).length;
+    const oldShape = withExport.filter(r => r.exportedOldShape).length;
+    const show = v => (typeof v === 'number' ? fmt(v) : v == null ? '—' : String(v));
+    const items = withExport.filter(r => r.derivedMismatch.length)
+      .map(r => item(r, r.derivedMismatch.map(m => `${m.field}: Lab ${show(m.lab)} × deník ${show(m.exported)}`).join('; ')));
+    const checked = withExport.length - unverified;
+    return {
+      ...base, status: items.length ? 'fail' : 'pass', checked, unverified, oldShape, items,
+      summary: `${items.length} z ${withExport.length}` + (unverified ? ` · ${unverified} nejde ověřit (neznámý tick instrumentu)` : '')
+        + (oldShape ? ` · ${oldShape} se starým tvarem dopočtů (deník před 4.8.5 – geometrie hladin se nesrovnává)` : ''),
+      message: items.length ? 'Lab počítá se svým přepočtem z cen; hodnotu z exportu nepřebírá ani neopravuje.' : null
+    };
+  }
+
+  // Pokrytí polí kontextu: hodnota / vědomě žádná / nevyplněno. Odvozeno
+  // z registru N.CONTEXT_V2_FIELDS nad všemi obchody ve výběru (stejný základ
+  // jako úplnost polí); netest / test hladin v blízkosti se počítá po řádcích.
+  function contextCoverage(sets) {
+    const base = sets.trades;
+    const rows = N.CONTEXT_V2_FIELDS.map(field => {
+      const c = { value: 0, none: 0, unknown: 0 };
+      for (const r of base) c[r.ctx[field.key].state]++;
+      return { field: field.key, label: L.fieldLabel(field.key), source: field.source, unit: 'obchodů', ...c, total: base.length };
+    });
+    const nearRows = base.flatMap(r => r.nearLevels);
+    const tested = nearRows.filter(row => row.testState != null).length;
+    rows.push({ field: 'nearLevelsTest', label: L.fieldLabel('nearLevelsTest'), source: 'row', unit: 'řádků', value: tested, none: 0, unknown: nearRows.length - tested, total: nearRows.length });
+    return { rows, total: base.length, withExport: base.filter(r => r.exported).length };
+  }
+
   function checks(sets) {
     const p = sets.perf;
     return [
@@ -469,7 +550,13 @@
       checkSetupsOutOfPnl(sets),
       checkMissingObservation(p),
       checkSelectiveRecording(p),
-      checkObservationWindow(p)
+      checkObservationWindow(p),
+      checkWrongSide(14, 'Cíl leží na ziskové straně vstupu', 'TARGET_WRONG_SIDE', sets.all,
+        r => !!r.targetLevel1 && has(r.targetLevel1.price) && !r.targetLevel1PriceDerived),
+      checkWrongSide(15, 'SL leží na ztrátové straně vstupu', 'SL_WRONG_SIDE', sets.all,
+        r => has(r.slPrice) && r.slDerived !== true),
+      checkRowFlags(sets.all),
+      checkDerivedConsistency(sets.all)
     ];
   }
 
@@ -506,6 +593,7 @@
       sample: sampleOverview(sets),
       usability: usabilityRows,
       completeness: completeness(sets),
+      contextCoverage: contextCoverage(sets),
       unknownKeys: unknownKeys(sets),
       skipLive: skipLiveStats(sets),
       checks: checks(sets),
@@ -528,6 +616,7 @@
     tradingDays,
     dateRange,
     fillStats,
+    overall,
     isWithoutObservation,
     computeHealth
   };

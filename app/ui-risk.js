@@ -120,11 +120,6 @@
   // Velikost bez znaménka (ušetřeno / zahozeno).
   const amount = (v, k) => `${num(r2(v))} R${k ? ` <span class="muted">${Math.round(v * k).toLocaleString('cs-CZ')} USD</span>` : ''}`;
 
-  function rulesFromViews(views) {
-    const out = {};
-    for (const f of RULE_FIELDS) out[f.key] = views[f.view];
-    return out;
-  }
 
   // USD za 1 R pro zvolenou velikost pozice (deník počítá s jeho typickou).
   function usdPerR(sim, views) {
@@ -245,7 +240,7 @@
   }
 
   function simSections(ctx, va) {
-    const sim = DS.simulate(ctx.records, rulesFromViews(ctx.views), { ...options(ctx), unitUSD: ctx.views.riskUnitUSD });
+    const sim = O.analyses(ctx).sim;
     const st = O.simState(sim, va);
     const head = { id: 'sim', title: 'Simulátor dne', state: st.state, missing: st.missing, headline: esc(st.headline) };
     if (sim.unit.usd == null) {
@@ -331,14 +326,14 @@
   }
 
   function render(ctx) {
-    const res = SQ.computeSequence(ctx.records, options(ctx));
-    const va = VA.computeVariants(ctx.records, { ...options(ctx), unitUSD: ctx.views.riskUnitUSD });
+    const { seq: res, va } = O.analyses(ctx);
     const st = O.seriesState(res);
     // Mimo sekce, ať je vidět i se vším sbaleným.
     const setupWarn = ctx.views.setupCode
       ? '<div class="obs-warning">⚠ Je zapnutý filtr setupu – sekvence vynechává obchody, které mezi nimi proběhly. Pro otázku denního stopu ber celý den bez filtru setupu.</div>'
       : '';
-    return setupWarn + sections('risk', [
+    // Nahoře tatáž karta jako v Souhrnu.
+    return window.LabSummaryUI.questionCard(window.LabSummary.riskCard(res)) + setupWarn + sections('risk', [
       heroCard(res, ctx, st),
       runsCard(res, st),
       permutationCard(res),

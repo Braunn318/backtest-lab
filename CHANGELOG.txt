@@ -1,3 +1,110 @@
+## 0.4.0 - 2026-10-14
+Zadání docs/ZADANI_LAB_SOUHRN.md: 1) kontext v3 (docs/ZADANI_KONTEXT_V3.md část B), 2) nové
+rozložení – Souhrn a podrobnosti zvlášť. Lab dál jen čte, nic nezapisuje; prahy vzorku se nemění.
+
+Kontext v3 (dorovnáno na deník 4.8.5)
+- Normalizace čte jeden seznam hladin `nearLevels` + `nearLevelsNone`. Starší export (srTarget /
+  srStopLoss + …None) převede V PAMĚTI stejným pravidlem jako deník (zrcadlo repo_clone/app/taxonomy.js:
+  sloučení obou stran, NONE pryč, duplicita jednou, legacySide jen u řádku bez ceny, „žádná" jen při
+  obou příznacích). Ověřeno kódem deníku nad všemi reálnými exporty: 0 rozdílů v převodu i geometrii
+  (Phidias 1 183 záznamů, Backtest_1 76 ve starém tvaru).
+- Geometrie řádku jako v deníku (repo_clone/app/context.js): fromEntry, fromStop, toTarget, position;
+  dopočty obchodu nearestAheadTicks, nearestAheadR, stopBehindTicks, levelsStopToEntry,
+  levelsEntryToTarget. Žádná tolerance ani konstanta v ticích.
+- Pryč z normalizace, kontrol, obrazovek a testů: liquiditySwept, pathProfile, entryLevelTests,
+  pathState, firstObstacleTicks, freePathR, slBufferTicks, slZoneCount, příznaky beyondStop /
+  beyondTarget / behindEntry, koše freePathR / slBufferTicks, tolerance „zastavila" (i v postranním panelu).
+- Kontrola 16 = hladiny za SL / za cílem (podle polohy, jen informace). Kontrola 17 porovnává novou
+  geometrii po řádcích; export se starými dopočty se jen spočítá („starý tvar dopočtů"). Známý rozdíl
+  „řádek NONE" zmizel (Phidias 1: 0 nesouladů z 183, 8 FDXS nejde ověřit).
+- Obrazovka „Síla hladin" → „Hladiny" (B2): dotčena = poloha v dráze [−MAE, +MFE], přesah, rozložení
+  podle vzdálenosti od vstupu po 1 ticku (sloučení po 2 / 4 t jen jako volba zobrazení, pamatuje se),
+  zvlášť podle typu hladiny a netest / test, SL za nejbližší hladinou (stopnuté × přeživší), nejbližší
+  hladina ve směru (cíl dosažen × nedosažen), kontrolní skupina s hladinou × žádná hladina.
+- Kontext (B3): bez cesty k cíli, volné cesty v R, profilu cesty, SL za zónou, likvidity a netest / test
+  vstupní hladiny – 13 dimenzí v pěti skupinách.
+- Úplnost polí: srTarget + srStopLoss → nearLevels (jako missingContextKeys deníku 4.8.5).
+
+Souhrn a podrobnosti
+- Nová úvodní obrazovka Souhrn (otevře se po spuštění, bez scrollování na 1920 × 1080, žádné tabulky):
+  výsledek (obchodů, win rate, expectancy R s průměrnou výhrou / ztrátou, P/L USD, malá equity křivka
+  v R), čtyři otázky (SL: p90 MAE vítězů a nejčastější SL · TP: medián pohybu po targetu · Hladiny:
+  N dotčených · Denní risk: runs test), kontext – největší rozdíly expectancy R mezi dvěma největšími
+  skupinami (3 dimenze nad prahem, bez zvýraznění) a řádek dat (úplnost, nejužší hrdlo).
+  Karta, která nemůže běžet, zůstane na místě zešedlá s „–" a co chybí.
+- Nic nového se nepočítá: analýzy se pro render spouštějí jednou (LabOverview.analyses) a Souhrn
+  i obrazovky čtou tentýž objekt. Přibyly jen dva agregáty na SL a TP (nejčastější SL, medián pohybu
+  po targetu) – ukázané i tam.
+- Navigace: Souhrn · Podrobnosti ▸ (sbalitelné, pamatuje se a přežije změnu deníku) – SL a TP, Hladiny,
+  Kontext, Denní risk · Data – Zdraví dat a co vyplnit.
+- „Co teď vím" zaniká. Bloky „Co vyplnit" a „Kdy to bude" jsou nahoře na obrazovce Data, odkazy
+  „Zatím nejde — chybí …" vedou tam.
+- Každá obrazovka v Podrobnostech má nahoře tutéž kartu jako Souhrn; Kontext navíc výsledek celého
+  vzorku stejnou mechanikou jako řádky tabulek.
+- Testy: 209 (nové summary, přepsané normalize-context, strength, health-context, overview, ui-context),
+  napsané předem a před implementací padaly. Proklikáno v náhledu, který jen čte (reálné exporty).
+
+## 0.3.3 - 2026-10-11
+- Kontext obchodu v2 (docs/ZADANI_KONTEXT.md část B). Lab dál jen čte, nic nezapisuje. Potřebuje
+  export deníku 4.8.1+ (nese nová pole a dopočty `derived`); export ze starší verze projde,
+  nová pole jsou u něj „nevyplněno". Čísla stávajících obrazovek se nemění (ověřeno před / po
+  nad reálnými exporty: vzorek, použitelnost, prognóza, kontroly 1–13, SL a TP, síla hladin proti
+  targetu, kontrolní skupiny, sekvence).
+- Normalizace (app/normalize.js – dál jediné místo):
+  - Nová pole deníku ve třech stavech hodnota / vědomě žádná / nevyplněno (out.ctx): trend 30m,
+    známka, vybraná likvidita, kolikátý test vstupu, netest / test vstupní hladiny (mapa
+    entryLevelTests), absorpce – kde, profil cesty k cíli, kontext dne (dayNotes[date].dayContext,
+    připojený ke každému záznamu dne). Nevyplněno nikdy nespadne do „žádná". Registr
+    CONTEXT_V2_FIELDS – z něj se odvozuje i pokrytí a testy.
+  - Dopočty z cen a časů počítá Lab sám stejným pravidlem jako deník: znaménková vzdálenost SR
+    řádku, vzdálenost od SL, příznaky za cílem / za SL / na ztrátové straně, první překážka,
+    stav cesty (FREE / BLOCKED / TARGET_IS_LEVEL / UNKNOWN – nevyplněno nikdy není volná cesta),
+    volná cesta v R, SL za nejbližší zónou, počet zón, pořadí obchodu v dni, výsledek předchozího
+    a P/L dne před ním. Hodnota z exportu slouží jen ke kontrole – rozdíl jde do derivedMismatch,
+    Lab počítá se svou a nic nepřepisuje.
+  - „Cíl na hladině", „známka doplněná zpětně" a seance se jen přebírají z exportu (stojí na
+    nastavení deníku, které export nenese). Chybí-li, jsou nevyplněné – Lab je nedomýšlí.
+  - Úplnost polí dorovnaná na deník 4.8.2: přibyl trend 30m a známka (ostatní nová pole úplnost
+    neblokují) a nenaplněný / vynechaný setup s výstupní cenou se posuzuje jako naplněný. Počet
+    „neúplných obchodů" tím stoupne stejně jako štítek „Neúplné" v deníku.
+  - Kód instrumentu bez kontraktního měsíce („MES 09-26" = MES), nové výchozí klíče hladin a cílů
+    z deníku 4.8.1 a popisky všech nových polí (app/labels.js).
+- Zdraví dat: čtyři nové kontroly za původními 13, jen hlásí, s datem a časem obchodu.
+  - 14 Cíl leží na ziskové straně vstupu, 15 SL leží na ztrátové straně vstupu – chyba; jen
+    ručně zadaná cena (dopočet z výstupu se nekontroluje), všechny záznamy výběru.
+  - 16 SR řádky mimo místo (za cílem, za SL, na ztrátové straně vstupu) – nový stav INFORMACE,
+    do chyb se nepočítá. Zóna u SL na vstupu nebo nad vstupem do longu sem nepatří.
+  - 17 Dopočty deníku sedí s přepočtem Labu – chyba s oběma hodnotami; export bez dopočtů N/A,
+    instrument bez známého ticku „nejde ověřit".
+  - Nová sekce „Pokrytí kontextu v2": za každé nové pole hodnota / vědomě žádná / nevyplněno.
+- Nová obrazovka „Kontext" (app/context.js, app/ui-context.js): rozpad N, win %, průměr R
+  a expectancy R podle 18 dimenzí v šesti skupinách – cíl a cesta (cíl na hladině, cesta k cíli,
+  volná cesta v R, profil cesty), SL (SL za nejbližší zónou), vstup (kolikátý test, netest / test,
+  absorpce, likvidita), směr (vůči trendu 30m a trendu: po trendu / proti / range), proces
+  (známka, kolikátý obchod dne, po čem přišel), den (open vůči value, typ dne, přesnost očekávání,
+  zprávy). Nevyplněno je vlastní řádek jen s počtem a do porovnání nevstupuje; známka změněná
+  dodatečně nebo doplněná zpětně jde stranou. Dimenze běží, až má druhá největší skupina 10
+  obchodů (pod 30 orientační) – prahy se nesnižují. Koše na jednom místě (LabContext.BUCKETS).
+  Sekce sbalené jako jinde; dimenze bez vzorku se nekreslí, jen řádek, co chybí.
+- Síla hladin:
+  - Zóny chránící SL se už neměří „zastavila / propadla" (cena kolem zóny osciluje). Pro každou
+    zónu d = vzdálenost od vstupu směrem k SL (záporná u zóny za vstupem), přesah = MAE − d,
+    „SL ustál" = obchod neskončil na stoplossu. Zóna na vstupu nebo za ním je otestovaná vždy,
+    zóna až za SL se jen spočítá. Po typech zón N, medián a p90 přesahu, % SL ustál; vedle toho
+    o kolik ticků ležel SL za nejbližší zónou u stopnutých a u přeživších obchodů.
+  - Na obou stranách přibyl rozpad netest / test a typy HVN / LVN (jen tyto klíče slovníku –
+    vlastní volby deníku Lab neřadí odhadem). Netestované hladiny dál vypadávají.
+- Co teď vím: za každou dimenzi kontextu se vzorkem jedna věta („Předběžně: …" pod prahem);
+  dimenze, které nejdou, jsou sloučené do jednoho řádku za skupinu s počty. Blok „Co vyplnit"
+  nabízí nová pole sám (za hrdly analýz SL a TP / hladin), kontext dne pod jednou položkou;
+  vyplněné zmizí. Věta o hladinách proti SL mluví o přesahu a „SL ustál".
+- Zjištěno nad reálnými daty (Lab neopravuje): deník u řádku SR „žádná hladina" (level NONE)
+  nedává cestu k cíli jako volnou – Phidias 1, 4 obchody, hlásí kontrola 17. Tři obchody s cílem
+  na špatné straně ze zadání už jsou v deníku opravené (kontrola 14 prošla).
+- Testy: 198 (+46; nové normalize-context, health-context, context, ui-context, rozšířené
+  strength a overview), ověřené 36 mutacemi. Proklikáno v prohlížeči nad reálnými exporty
+  (Phidias 1, Backtest_1) přes náhled, který jen čte.
+
 ## 0.3.2 - 2026-10-07
 - Opraveno: vlastní volby deníku (CUSTOM_LVN_DAY, CUSTOM_FIX_RRR, CUSTOM_0_VE_FP …) se ve Zdraví
   dat hlásily jako „Neznámé klíče" a zobrazovaly se jako surový klíč. Export deníku od 4.7.4 nese

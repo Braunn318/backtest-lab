@@ -1,8 +1,10 @@
 'use strict';
-// Úvodní obrazovka „Co teď vím" a stavy sekcí na ostatních obrazovkách.
+// Stavy analýz (sekce obrazovek, karty Souhrnu) a bloky „Co vyplnit" / „Kdy
+// to bude" na obrazovce Data. Od 0.4 i JEDINÉ místo, kde se pro render
+// spouští analýzy (analyses) – Souhrn i obrazovky čtou tentýž objekt.
 //
 // NIC NEPOČÍTÁ. Bere výsledky existujících analýz (LabHealth, LabSlTp,
-// LabStrength, LabSequence, LabDaySim, LabVariants) a jejich vlastní prahy
+// LabStrength, LabSequence, LabDaySim, LabVariants, LabContext) a jejich vlastní prahy
 // a skládá z nich jednu větu a stav:
 //   ok   ✓ ví se         vzorek projde prahem dané analýzy
 //   weak ~ zatím slabé   spočítatelné, ale pod prahem – věta začíná „Předběžně"
@@ -16,12 +18,12 @@
 (function (root, factory) {
   const isNode = typeof module !== 'undefined' && module.exports;
   const deps = isNode
-    ? ['./health.js', './sltp.js', './strength.js', './sequence.js', './daysim.js', './variants.js'].map(f => require(f))
-    : [root.LabHealth, root.LabSlTp, root.LabStrength, root.LabSequence, root.LabDaySim, root.LabVariants];
+    ? ['./health.js', './sltp.js', './strength.js', './sequence.js', './daysim.js', './variants.js', './context.js'].map(f => require(f))
+    : [root.LabHealth, root.LabSlTp, root.LabStrength, root.LabSequence, root.LabDaySim, root.LabVariants, root.LabContext];
   const api = factory(...deps);
   if (isNode) module.exports = api;
   if (root) root.LabOverview = api;
-}(typeof globalThis !== 'undefined' ? globalThis : this, function (H, S, ST, SQ, D, VA) {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (H, S, ST, SQ, D, VA, CX) {
 
   const STATES = ['ok', 'weak', 'na'];
   const ICON = { ok: '✓', weak: '~', na: '–' };
@@ -29,7 +31,7 @@
   const GREY = S.SAMPLE_GREY;
   const WARN = S.SAMPLE_WARN;
   const SWEEP_WARN = S.SWEEP_SAMPLE_WARN;
-  const SCREEN_LABEL = { health: 'Zdraví dat', sltp: 'SL a TP', levels: 'Síla hladin', risk: 'Denní risk' };
+  const SCREEN_LABEL = { summary: 'Souhrn', health: 'Data', sltp: 'SL a TP', levels: 'Hladiny', context: 'Kontext', risk: 'Denní risk' };
   // Body SL sweepu, které jdou do věty – pevné hodnoty z jeho řady, žádný výběr „nejlepší".
   const SWEEP_POINTS = [8, 12, 16];
 
@@ -47,7 +49,7 @@
   // Nápověda u polí v bloku „Co vyplnit" – podle klíče řádku použitelnosti.
   const FILL_HINTS = {
     plannedTarget: 'Vystoupil jsi ručně bez plánované hladiny? Nech prázdné, ne MANUAL_EXIT.',
-    controlGroup: 'Když v cestě žádná hladina nebyla, vyber „žádná hladina v cestě“ – prázdné se do porovnání nepočítá.'
+    controlGroup: 'Když v blízkosti žádná hladina nebyla, zaškrtni „žádná hladina v blízkosti“ – prázdné se do porovnání nepočítá.'
   };
 
   const has = v => v !== null && v !== undefined;
@@ -126,36 +128,60 @@
     };
   }
 
-  const SIDE_NAME = { target: 'proti TP', sl: 'proti SL' };
+  // Hladiny v blízkosti (v3 B2): stav podle počtu DOTČENÝCH řádků – nedotčená
+  // hladina z výpočtů reakce vypadává. Věta popisuje rozložení, nic nevybírá.
+  const signedT = v => (v > 0 ? '+' : v < 0 ? '−' : '') + num(Math.abs(v)) + ' t';
 
-  function levelSideState(side) {
-    const name = SIDE_NAME[side.key];
-    const state = side.totalRows ? bySample(side.tested) : 'na';
-    // Nejčastěji testované hladiny – ne „nejsilnější", ať věta nic nevybírá.
-    const top = side.levels.filter(l => l.tested > 0).sort((a, b) => b.tested - a.tested).slice(0, 2);
+  function levelsState(st) {
+    const state = st.totalRows ? bySample(st.touched) : 'na';
+    const lack = Math.max(0, GREY - st.touched);
     let missing;
-    if (!side.totalRows) missing = `zapsané hladiny ${name} – je 0 řádků, do ${GREY} otestovaných chybí ${GREY}`;
-    else if (side.withPlace < side.totalRows) missing = `cena nebo vzdálenost u ${side.totalRows - side.withPlace} z ${side.totalRows} řádků ${name} (otestováno ${side.tested}, do ${GREY} chybí ${GREY - side.tested})`;
-    else missing = `${GREY - side.tested} otestovaných hladin ${name} do ${GREY} (je ${side.tested}, netestovaných ${side.untested})`;
+    if (!st.totalRows) missing = `zapsané hladiny v blízkosti s cenou – je 0 řádků, do ${GREY} dotčených chybí ${GREY}`;
+    else if (st.withDistance < st.totalRows) missing = `cena u ${st.totalRows - st.withDistance} z ${st.totalRows} řádků hladin v blízkosti (dotčených ${st.touched}, do ${GREY} chybí ${lack})`;
+    else missing = `${lack} ${plural(lack, 'dotčená hladina', 'dotčené hladiny', 'dotčených hladin')} do ${GREY} (je ${st.touched}, nedotčených ${st.untouched}, bez naměřené MFE / MAE ${st.noExcursion})`;
     return {
       state,
-      fact: top.length ? `${name}: ${top.map(l => `${l.label} zastavila ${l.held} z ${l.tested}`).join(', ')} (otestováno ${side.tested})` : null,
-      headline: `${side.tested} otestovaných · ${side.withPlace} z ${side.totalRows} řádků s cenou nebo vzdáleností`,
+      fact: st.touched
+        ? `${st.touched} ${plural(st.touched, 'dotčená hladina', 'dotčené hladiny', 'dotčených hladin')} – ${st.touchedAhead} ve směru obchodu, ${st.touchedBehind} na vstupu a proti`
+          + (has(st.medianOvershoot) ? `; cena za ně zajela mediánem ${num(st.medianOvershoot)} t` : '')
+        : null,
+      headline: `${st.touched} dotčených · ${st.untouched} nedotčených · ${st.withDistance} z ${st.totalRows} řádků s polohou`
+        + (has(st.medianOvershoot) ? ` · medián přesahu ${num(st.medianOvershoot)} t` : ''),
       missing
     };
   }
 
-  function controlState(cg) {
-    const name = SIDE_NAME[cg.key];
-    const m = Math.min(cg.none.n, cg.present.n);
-    const isTarget = cg.key === 'target';
-    const hit = s => pct(isTarget ? s.targetHit : s.stopHit);
-    const what = isTarget ? 'cíl dosažen' : 'SL zasažen';
+  // SL za nejbližší hladinou mezi SL a cílem: stopnuté × přeživší.
+  function stopBehindState(sb) {
+    const m = Math.min(sb.stopped.n, sb.survived.n);
     return {
       state: bySample(m),
-      fact: `${name}: s hladinou v cestě ${what} ${hit(cg.present)} (n ${cg.present.n}), bez hladiny ${hit(cg.none)} (n ${cg.none.n})`,
-      headline: `žádná hladina ${cg.none.n} · hladina ${cg.present.n} · nevyplněno ${cg.unknown.n}`,
-      missing: `${GREY - m} ${plural(GREY - m, 'obchod', 'obchody', 'obchodů')} v menší skupině ${name} do ${GREY} (žádná hladina ${cg.none.n} · hladina ${cg.present.n} · nevyplněno ${cg.unknown.n})`
+      fact: sb.n ? `SL ležel za nejbližší hladinou mediánem ${num(sb.stopped.median)} t u stopnutých (n ${sb.stopped.n}) a ${num(sb.survived.median)} t u přeživších (n ${sb.survived.n})` : null,
+      headline: `stopnuté ${sb.stopped.n}${has(sb.stopped.median) ? ` · medián ${num(sb.stopped.median)} t` : ''} · přeživší ${sb.survived.n}${has(sb.survived.median) ? ` · medián ${num(sb.survived.median)} t` : ''} · bez hladiny mezi SL a cílem ${sb.unknown}`,
+      missing: `${GREY - m} ${plural(GREY - m, 'obchod', 'obchody', 'obchodů')} v menší skupině do ${GREY} (stopnuté ${sb.stopped.n} · přeživší ${sb.survived.n} · bez hladiny s polohou mezi SL a cílem ${sb.unknown})`
+    };
+  }
+
+  // Nejbližší hladina ve směru obchodu: cíl dosažen × nedosažen.
+  function nearestAheadState(na) {
+    const m = Math.min(na.reached.n, na.missed.n);
+    const part = p => `${num(p.medianTicks)} t${has(p.medianR) ? ` (${num(p.medianR)} R)` : ''}`;
+    return {
+      state: bySample(m),
+      fact: na.n ? `nejbližší hladina ve směru ležela mediánem ${part(na.reached)} u obchodů na cíli (n ${na.reached.n}) a ${part(na.missed)} u ostatních (n ${na.missed.n})` : null,
+      headline: `cíl dosažen ${na.reached.n}${na.reached.n ? ` · medián ${part(na.reached)}` : ''} · nedosažen ${na.missed.n}${na.missed.n ? ` · medián ${part(na.missed)}` : ''}`,
+      missing: `${GREY - m} ${plural(GREY - m, 'obchod', 'obchody', 'obchodů')} v menší skupině do ${GREY} (cíl dosažen ${na.reached.n} · nedosažen ${na.missed.n} · bez hladiny ve směru ${na.unknown})`
+    };
+  }
+
+  // Kontrolní skupina: obchody s vědomě „žádná hladina v blízkosti" × s hladinou.
+  function controlState(cg) {
+    const m = Math.min(cg.none.n, cg.present.n);
+    return {
+      state: bySample(m),
+      fact: `s hladinou v blízkosti cíl dosažen ${pct(cg.present.targetHit)} (n ${cg.present.n}), bez hladiny ${pct(cg.none.targetHit)} (n ${cg.none.n})`,
+      headline: `žádná hladina ${cg.none.n} · s hladinou ${cg.present.n} · nevyplněno ${cg.unknown.n}`,
+      missing: `${GREY - m} ${plural(GREY - m, 'obchod', 'obchody', 'obchodů')} v menší skupině do ${GREY} (žádná hladina ${cg.none.n} · s hladinou ${cg.present.n} · nevyplněno ${cg.unknown.n})`
     };
   }
 
@@ -274,37 +300,38 @@
     return { state, fact, headline: `${phrase}: čistě ${signedR(sim.netR)} · ${days} ${plural(days, 'den', 'dny', 'dnů')}`, missing: null };
   }
 
-  // ------------------------------------------------------------- úvodní obrazovka
+  // ------------------------------------------------------------- analýzy jednoho renderu
 
-  // Věta končí jednou tečkou, i když fakt (verdikt sekvence) tečkou končí sám.
-  const stop = s => s.replace(/[.\s]+$/, '') + '.';
-  function sentence(title, st) {
-    if (st.state === 'na') return stop(`${title} zatím nejde — chybí ${st.missing}`);
-    if (st.state === 'weak') return stop(`Předběžně: ${lowerFirst(st.fact)}`);
-    return stop(capitalize(st.fact));
-  }
+  // Všechny analýzy pro jeden render, spočítané JEDNOU a se stejnými volbami
+  // jako obrazovky v Podrobnostech – Souhrn i obrazovky čtou tentýž objekt,
+  // takže čísla v Souhrnu jsou z definice stejná jako v Podrobnostech.
+  // Memo na objektu ctx (každý render staví nový ctx).
+  const memo = new WeakMap();
 
-  // Dvě strany (proti TP / proti SL) v jednom řádku: stav = ta lepší,
-  // u nespuštěné strany se řekne, co jí chybí.
-  function mergedSides(title, sides) {
-    const best = sides.reduce((a, s) => (rank(s.state) < rank(a.state) ? s : a), sides[0]);
-    if (best.state === 'na') {
-      return { state: 'na', text: stop(`${title} zatím nejde — chybí ${sides.map(s => s.missing).join('; ')}`) };
-    }
-    const parts = sides.map(s => (s.state === 'na' ? `${s.name} zatím nejde — chybí ${s.missing}` : s.fact));
-    const body = `${title.toLowerCase()} ${parts.join('; ')}`;
-    return { state: best.state, text: stop(best.state === 'weak' ? `Předběžně: ${body}` : capitalize(body)) };
-  }
-
-  function computeOverview(ctx) {
-    const { records, perf, health, views = {}, options = {} } = ctx;
-    const sltp = S.computeSlTp(perf, { targetR: views.sweepTargetR || 1 });
-    const strength = ST.computeStrength(perf, { tolerance: has(views.levelTolerance) ? views.levelTolerance : ST.DEFAULT_TOLERANCE });
-    const seq = SQ.computeSequence(records, options);
+  function analyses(ctx) {
+    if (memo.has(ctx)) return memo.get(ctx);
+    const { records, perf, views = {}, options = {} } = ctx;
     const riskOptions = { ...options, unitUSD: views.riskUnitUSD };
-    const va = VA.computeVariants(records, riskOptions);
-    const sim = D.simulate(records, rulesFromViews(views), riskOptions);
+    const an = {
+      sltp: S.computeSlTp(perf, { targetR: views.sweepTargetR || 1 }),
+      strength: ST.computeStrength(perf, { bin: views.levelBin }),
+      seq: SQ.computeSequence(records, options),
+      va: VA.computeVariants(records, riskOptions),
+      sim: D.simulate(records, rulesFromViews(views), riskOptions),
+      context: CX.computeContext(perf)
+    };
+    memo.set(ctx, an);
+    return an;
+  }
 
+  // ------------------------------------------------------------- stavy analýz celkem
+
+  // Stav každé analýzy + bloky „Co vyplnit" a „Kdy to bude" (obrazovka Data).
+  // rows = jedna položka za analýzu: stav a řádky prognózy zdraví dat, které
+  // patří k analýze, jež dnes neběží (pending).
+  function computeOverview(ctx) {
+    const { health } = ctx;
+    const { sltp, strength, seq, va, sim, context } = analyses(ctx);
     const st = {
       series: seriesState(seq),
       dayStop: sim.active ? simState(sim, va) : variantsState(va),
@@ -312,49 +339,37 @@
       mfe: mfeState(sltp.mfeStopped),
       sweep: sweepState(sltp.sweep),
       grid: gridState(sltp.grid),
-      levelsTarget: { ...levelSideState(strength.sides[0]), name: SIDE_NAME.target },
-      levelsSl: { ...levelSideState(strength.sides[1]), name: SIDE_NAME.sl },
-      controlTarget: { ...controlState(strength.control[0]), name: SIDE_NAME.target },
-      controlSl: { ...controlState(strength.control[1]), name: SIDE_NAME.sl },
+      levels: levelsState(strength),
+      stopBehind: stopBehindState(strength.stopBehind),
+      nearestAhead: nearestAheadState(strength.nearestAhead),
+      control: controlState(strength.control),
       fill: fillState(health.checks.find(c => c.id === 9))
     };
-    const days = n => `n = ${n} ${plural(n, 'den', 'dny', 'dnů')}`;
-    const levels = mergedSides('Síla hladin', [st.levelsTarget, st.levelsSl]);
-    const control = mergedSides('Kontrolní skupina hladin', [st.controlTarget, st.controlSl]);
-
-    // pending = řádky prognózy zdraví dat pro analýzy, které dnes neběží
-    // (u sloučeného řádku i nespuštěná strana, když druhá běží).
     const pending = (state, ...keys) => (state === 'na' ? keys : []);
-    const rows = [
-      { key: 'series', screen: 'risk', state: st.series.state, text: sentence('Test náhodnosti sérií', st.series), n: `n = ${seq.n}`, pending: [] },
-      { key: 'dayStop', screen: 'risk', state: st.dayStop.state, text: sentence(sim.active ? 'Pravidlo ze simulátoru dne' : 'Mřížka variant denního stopu', st.dayStop), n: days(sim.active ? sim.days.length : va.days), pending: [] },
-      { key: 'mae', screen: 'sltp', state: st.mae.state, text: sentence('MAE vítězů', st.mae), n: `n = ${sltp.maeWinners.n}`, pending: pending(st.mae.state, 'maeWinners') },
-      { key: 'mfe', screen: 'sltp', state: st.mfe.state, text: sentence('MFE stopnutých', st.mfe), n: `n = ${sltp.mfeStopped.n}`, pending: pending(st.mfe.state, 'mfeStopped') },
-      { key: 'sweep', screen: 'sltp', state: st.sweep.state, text: sentence('SL sweep', st.sweep), n: `n = ${sltp.sweep.n}`, pending: pending(st.sweep.state, 'slSweep') },
-      { key: 'grid', screen: 'sltp', state: st.grid.state, text: sentence('Mřížka SL × TP', st.grid), n: `n = ${sltp.grid.n}`, pending: pending(st.grid.state, 'grid') },
-      { key: 'levels', screen: 'levels', state: levels.state, text: levels.text, n: `n = ${strength.sides[0].tested} / ${strength.sides[1].tested} otestovaných (TP / SL)`, pending: [...pending(st.levelsTarget.state, 'levelsTarget'), ...pending(st.levelsSl.state, 'levelsSl')] },
-      // Prognóza kontrolní skupiny je jen pro stranu proti TP (řádek použitelnosti controlGroup).
-      { key: 'control', screen: 'levels', state: control.state, text: control.text, n: `n = ${Math.min(strength.control[0].none.n, strength.control[0].present.n)} / ${Math.min(strength.control[1].none.n, strength.control[1].present.n)} v menší skupině (TP / SL)`, pending: pending(st.controlTarget.state, 'controlGroup') },
-      { key: 'fill', screen: 'health', state: st.fill.state, text: sentence('Fill rate', st.fill), n: `n = ${st.fill.state === 'na' ? 0 : health.checks.find(c => c.id === 9).fill.n}`, pending: [] }
-    ];
-    for (const row of rows) {
-      row.icon = ICON[row.state];
-      row.screenLabel = SCREEN_LABEL[row.screen];
-    }
+    const rows = byState([
+      { key: 'series', screen: 'risk', state: st.series.state, pending: [] },
+      { key: 'dayStop', screen: 'risk', state: st.dayStop.state, pending: [] },
+      { key: 'mae', screen: 'sltp', state: st.mae.state, pending: pending(st.mae.state, 'maeWinners') },
+      { key: 'mfe', screen: 'sltp', state: st.mfe.state, pending: pending(st.mfe.state, 'mfeStopped') },
+      { key: 'sweep', screen: 'sltp', state: st.sweep.state, pending: pending(st.sweep.state, 'slSweep') },
+      { key: 'grid', screen: 'sltp', state: st.grid.state, pending: pending(st.grid.state, 'grid') },
+      { key: 'levels', screen: 'levels', state: st.levels.state, pending: pending(st.levels.state, 'levels') },
+      { key: 'control', screen: 'levels', state: st.control.state, pending: pending(st.control.state, 'controlGroup') },
+      { key: 'fill', screen: 'health', state: st.fill.state, pending: [] }
+    ]);
 
     // Stavy pro řádky použitelnosti – blok „Co vyplnit" z nich pozná, co dnes něco blokuje.
     const usabilityState = {
       maeWinners: st.mae.state, mfeStopped: st.mfe.state, slSweep: st.sweep.state, grid: st.grid.state,
-      levelsTarget: st.levelsTarget.state, levelsSl: st.levelsSl.state, controlGroup: st.controlTarget.state, fillRate: st.fill.state
+      levels: st.levels.state, controlGroup: st.control.state, fillRate: st.fill.state
     };
-    const lacking = { controlGroup: strength.control[0].unknown.n };
-
-    const sorted = byState(rows);
+    const lacking = { controlGroup: strength.control.unknown.n };
     return {
-      rows: sorted,
+      rows,
       states: st,
-      fill: fillList(health, usabilityState, lacking),
-      eta: etaLines(sorted, { health, seq, va, fill: st.fill, series: st.series })
+      context,
+      fill: fillList(health, usabilityState, lacking, CX.fillRows(context)),
+      eta: etaLines(rows, { health, seq, va, fill: st.fill, series: st.series })
     };
   }
 
@@ -364,10 +379,12 @@
   // (bez vlastního stavu – R statistika, plánovaný cíl – pod cílem
   // použitelnosti) a aspoň jednomu záznamu pole chybí. Seskupené podle
   // chybějícího pole, od nejužšího hrdla (nejmenší N). Co se vyplní, zmizí samo.
-  function fillList(health, usabilityState = {}, lackingOverride = {}) {
+  // extraRows = pole kontextu v2 (LabContext.fillRows) – stejný tvar, stav nesou
+  // samy; řadí se za hrdla analýz fáze 2, nenaplněné limitky zůstávají poslední.
+  function fillList(health, usabilityState = {}, lackingOverride = {}, extraRows = []) {
     const groups = new Map();
-    for (const u of health.usability) {
-      const state = usabilityState[u.key];
+    for (const u of [...health.usability, ...extraRows]) {
+      const state = usabilityState[u.key] || u.state;
       const blocking = state ? state !== 'ok' : u.n < H.USABLE_GOAL;
       const lacking = u.key === 'fillRate' ? (state === 'na' ? 1 : 0)
         : has(lackingOverride[u.key]) ? lackingOverride[u.key] : u.m - u.n;
@@ -390,9 +407,12 @@
         detail = rows.map(u => `${u.n} z ${u.m} ${u.unit} (${u.label})`).join(', ') + '.';
       }
       const hints = rows.map(u => FILL_HINTS[u.key]).filter(Boolean);
-      return { field: capitalize(lacks), keys: rows.map(u => u.key), minN, lacking: Math.max(...rows.map(u => u.m - u.n)), detail, hint: hints.join(' ') || null };
+      const tier = minN === Infinity ? 2 : rows.every(u => u.kind === 'context') ? 1 : 0;
+      // unit = jednotka nejužšího řádku (obchodů / řádků) – Souhrn ji píše k N hrdla.
+      const narrow = rows.reduce((a, u) => (u.n < a.n ? u : a), rows[0]);
+      return { field: capitalize(lacks), keys: rows.map(u => u.key), tier, minN, unit: narrow.unit, lacking: Math.max(...rows.map(u => u.m - u.n)), detail, hint: hints.join(' ') || null };
     });
-    items.sort((a, b) => a.minN - b.minN || b.lacking - a.lacking);
+    items.sort((a, b) => a.tier - b.tier || a.minN - b.minN || b.lacking - a.lacking);
     return items;
   }
 
@@ -438,7 +458,9 @@
   return {
     STATES, ICON, STATE_LABEL, SCREEN_LABEL, RULES, plural,
     bySample, byState, rulesFromViews,
-    maeState, mfeState, sweepState, gridState, levelSideState, controlState, fillState, seriesState, variantsState, simState,
-    computeOverview, fillList, etaLines
+    num, pct, signedR, capitalize, lowerFirst,
+    maeState, mfeState, sweepState, gridState, levelsState, stopBehindState, nearestAheadState, controlState,
+    fillState, seriesState, variantsState, simState,
+    analyses, computeOverview, fillList, etaLines
   };
 }));

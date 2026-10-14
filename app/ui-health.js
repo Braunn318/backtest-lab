@@ -1,5 +1,7 @@
 'use strict';
-// Obrazovka „Zdraví dat". Jen vykresluje výsledek LabHealth.computeHealth.
+// Obrazovka „Zdraví dat a co vyplnit" (skupina Data). Jen vykresluje výsledek
+// LabHealth.computeHealth; nahoře karta dat ze Souhrnu a bloky „Co vyplnit"
+// a „Kdy to bude" (od 0.4 tady – úvodní „Co teď vím" zanikla).
 
 (function () {
   const H = window.LabHealth;
@@ -117,10 +119,32 @@
     }).join('');
     return {
       id: 'b', letter: 'B', title: 'Úplnost polí', state: 'ok',
-      headline: esc(`neúplných obchodů ${c.incomplete} z ${c.total}`),
+      headline: esc(`neúplných obchodů ${c.incomplete} z ${c.total} · úplnost kontextu ${pct(c.total ? (c.total - c.incomplete) / c.total : null)}`),
       body: `<p class="section-sub">Stejná definice jako štítek „⚠ Neúplné“ v deníku (missingContextKeys): nula i dopočtená hodnota jsou vyplněné, u nenaplněného setupu se průběh nekontroluje. Nastavení karet formuláře se nepřebírá – pro analýzu chybí, co chybí. Všechny obchody ve výběru.</p>
       <div class="metrics">${metric('Neúplných obchodů', `${c.incomplete} z ${c.total}`)}</div>
       <div class="table-scroll"><table><thead><tr><th>Pole</th><th class="num">Vyplněno</th><th class="num">Chybí</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    };
+  }
+
+  // Kontext v2: za každé nové pole hodnota / vědomě žádná / nevyplněno. Řádky
+  // dává registr v normalizaci (LabNormalize.CONTEXT_V2_FIELDS), nic natvrdo.
+  function contextCoverageCard(h) {
+    const c = h.contextCoverage;
+    const SOURCE = { trade: 'pole obchodu', day: 'kontext dne', export: 'dopočet deníku', row: 'řádky hladin v blízkosti' };
+    const filled = c.rows.filter(r => r.value + r.none > 0).length;
+    const rows = c.rows.map(r => {
+      const known = r.value + r.none;
+      const w = r.total ? (known / r.total) * 100 : 0;
+      const cls = !r.total ? 'low' : known / r.total >= 0.9 ? 'full' : known / r.total >= 0.5 ? 'mid' : 'low';
+      return `<tr class="${known ? '' : 'grey'}"><td><b>${esc(r.label)}</b> <span class="mono muted">${esc(r.field)}</span><div class="muted" style="font-size:11px">${esc(SOURCE[r.source] || r.source)}</div></td>`
+        + `<td class="num"><b>${r.value}</b></td><td class="num">${r.none}</td><td class="num">${r.unknown}</td><td class="num muted">${r.total} ${esc(r.unit)}</td>`
+        + `<td style="width:24%"><div class="bar"><i class="${cls}" style="width:${w}%"></i></div></td></tr>`;
+    }).join('');
+    return {
+      id: 'ctx-coverage', title: 'Pokrytí kontextu', state: 'ok',
+      headline: esc(`${filled} z ${c.rows.length} polí má aspoň jednu hodnotu · dopočty deníku nese ${c.withExport} z ${c.total} obchodů`),
+      body: `<p class="section-sub">Pole kontextu deníku (od 4.8.1, hladiny v blízkosti od 4.8.5). „Vědomě žádná“ (bez absorpce, bez zpráv, „nevím“) je vyplněná odpověď; nevyplněno je nevyplněno a do žádného porovnání na obrazovce Kontext nevstupuje. ${c.withExport < c.total ? `U ${c.total - c.withExport} z ${c.total} obchodů export nenese dopočty deníku (starší verze – stačí v deníku cokoli uložit); „cíl na hladině“ u nich Lab nezná.` : ''} Všechny obchody ve výběru.</p>
+      <div class="table-scroll"><table><thead><tr><th>Pole</th><th class="num">Hodnota</th><th class="num">Vědomě žádná</th><th class="num">Nevyplněno</th><th class="num">Z</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
     };
   }
 
@@ -147,11 +171,11 @@
       </details>`;
     }).join('');
     const counts = h.checks.reduce((a, c) => (a[c.status] = (a[c.status] || 0) + 1, a), {});
-    const tally = ['fail', 'warn', 'pass', 'na'].filter(k => counts[k]).map(k => `<span class="pill ${k}">${STATUS_LABEL[k]} ${counts[k]}</span>`).join(' ');
+    const tally = ['fail', 'warn', 'info', 'pass', 'na'].filter(k => counts[k]).map(k => `<span class="pill ${k}">${STATUS_LABEL[k]} ${counts[k]}</span>`).join(' ');
     return {
       id: 'c', letter: 'C', title: 'Konzistenční kontroly', state: 'ok',
       headline: tally,
-      body: `<p class="section-sub">Kliknutím na řádek se rozbalí seznam obchodů, které kontrolu shodily. R se znaménkem = rMultiple × znaménko exitTicks (deník ukládá rMultiple bez znaménka). Ziskový = exitTicks &gt; 0.</p>
+      body: `<p class="section-sub">Kliknutím na řádek se rozbalí seznam obchodů, které kontrolu shodily. R se znaménkem = rMultiple × znaménko exitTicks (deník ukládá rMultiple bez znaménka). Ziskový = exitTicks &gt; 0. Kontroly 14–16 odpovídají „Kontrole dat“ v deníku a berou všechny záznamy výběru; 17 porovnává dopočty deníku s přepočtem Labu. Lab nic neopravuje – oprava je na tobě v deníku.</p>
       ${list}`
     };
   }
@@ -172,12 +196,39 @@
     };
   }
 
+  // ------------------------------------------------------------- co vyplnit, kdy to bude
+
+  function fillBlock(items) {
+    const list = items.length
+      ? `<ol class="fill-list">${items.map(x => `<li><b>${esc(x.field)}</b> — ${esc(x.detail)}${x.hint ? `<div class="muted fill-hint">(${esc(x.hint)})</div>` : ''}</li>`).join('')}</ol>`
+      : '<p class="muted">Žádné pole dnes žádnou analýzu neblokuje.</p>';
+    return `<div class="card" id="fill">
+      <h2>Co vyplnit při nejbližším replayi</h2>
+      <p class="section-sub">Jen pole, která dnes blokují nějakou analýzu, od nejužšího hrdla. Odvozuje se z dat – co vyplníš, samo zmizí.</p>
+      ${list}
+    </div>`;
+  }
+
+  function etaBlock(lines) {
+    const list = lines.length
+      ? `<ul class="eta-list">${lines.map(x => `<li>${esc(x.text)}</li>`).join('')}</ul>`
+      : '<p class="muted">Všechny analýzy běží.</p>';
+    return `<div class="card">
+      <h2>Kdy to bude</h2>
+      <p class="section-sub">Za každou analýzu, která dnes neběží. Obchody: prognóza z bloku D níže (cíl 50 použitelných, tempo = použitelné ÷ obchodní dny ve výběru) – předběžný výsledek se ukáže dřív, od 10. Denní stop: počet chybějících dnů.</p>
+      ${list}
+    </div>`;
+  }
+
   function render(ctx) {
     const h = ctx.health;
     const c11 = h.checks.find(c => c.id === 11);
-    return sections('health', [heroCheck11(c11), unknownKeysCard(h), sectionA(h), skipLiveCard(h), sectionB(h), sectionC(h), sectionD(h)], ctx.views);
+    const ov = window.LabOverview.computeOverview(ctx);
+    // Nahoře tatáž karta jako v Souhrnu (úplnost, nejužší hrdlo), pak co vyplnit a kdy to bude.
+    const top = window.LabSummaryUI.dataCard(window.LabSummary.dataOf(h, ov)) + fillBlock(ov.fill) + etaBlock(ov.eta);
+    return top + sections('health', [heroCheck11(c11), unknownKeysCard(h), sectionA(h), skipLiveCard(h), sectionB(h), contextCoverageCard(h), sectionC(h), sectionD(h)], ctx.views);
   }
 
   window.LabScreens = window.LabScreens || {};
-  window.LabScreens.health = { title: 'Zdraví dat', question: 'Sbírám použitelná data?', render };
+  window.LabScreens.health = { title: 'Zdraví dat a co vyplnit', question: 'Sbírám použitelná data a co doplnit?', render };
 })();

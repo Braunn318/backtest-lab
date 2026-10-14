@@ -6,6 +6,8 @@
 (function () {
   const S = window.LabSlTp;
   const O = window.LabOverview;
+  const SM = window.LabSummary;
+  const UI = window.LabSummaryUI;
   const { esc, pct, num, signedNum, metric, sampleNote, sections } = window.LabUI;
 
   const TIER_LABEL = { nt8: 'NT8', manual: 'ručně', derived: 'dopočteno' };
@@ -136,14 +138,18 @@
   }
 
   function render(ctx) {
-    const res = S.computeSlTp(ctx.perf, { targetR: ctx.views.sweepTargetR || 1 });
+    const res = O.analyses(ctx).sltp;
+    // Nahoře tytéž karty jako v Souhrnu (SL, TP) – stejná čísla a věta.
+    const cards = `<div class="sum-pair">${UI.questionCard(SM.slCard(res))}${UI.questionCard(SM.tpCard(res))}</div>`;
+    const mode = res.slMode.values.length ? `${res.slMode.values.map(num).join(' / ')} t (${res.slMode.count}× z ${res.slMode.n})` : '—';
     const top = `<div class="card slim">
       <div class="hero-stats" style="margin:0">
         <span>Výkonový vzorek: <b>${res.n}</b> obchodů</span>
+        <span>Nejčastější SL: <b>${esc(mode)}</b></span>
         <span>Dopočítáno, do výpočtu nevstupuje: MFE <b>${res.derived.mfe}</b> · MAE <b>${res.derived.mae}</b></span>
         <span>${sampleNote(res.n)}</span>
       </div></div>`;
-    return top + sections('sltp', [tradeTable(res), maeCard(res.maeWinners), mfeCard(res.mfeStopped), sweepCard(res.sweep), gridCard(res.grid)], ctx.views);
+    return cards + top + sections('sltp', [tradeTable(res), maeCard(res.maeWinners), mfeCard(res.mfeStopped), sweepCard(res.sweep), gridCard(res.grid)], ctx.views);
   }
 
   window.LabScreens = window.LabScreens || {};

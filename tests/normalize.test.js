@@ -48,43 +48,40 @@ test('R: kdyby deník uložil rMultiple se znaménkem, výsledek je stejný', ()
   assert.equal(N.normalizeRecord({ rMultiple: -1, exitTicks: -12 }).rSigned, -1);
 });
 
-test('srTarget: starý tvar (klíče) i nový (řádky s cenou) → řádky', () => {
-  const old = N.normalizeRecord({ srTarget: ['VPOC_1M', 'NONE'], srStopLoss: [] });
-  assert.deepEqual(old.srTarget, [
-    { level: 'VPOC_1M', price: null, ticksFromEntry: null, isNone: false, distanceTicks: null },
-    { level: 'NONE', price: null, ticksFromEntry: null, isNone: true, distanceTicks: null }
-  ]);
-  assert.deepEqual(old.srStopLoss, []);
-  assert.equal(old.srTarget.some(N.levelRowHasPlace), false);
+// Základ řádku hladiny v blízkosti; geometrie a převod starého tvaru mají vlastní testy (normalize-context).
+const core = rows => rows.map(({ level, price, ticksFromEntry, legacySide, fromEntry }) => ({ level, price, ticksFromEntry, legacySide, fromEntry }));
 
-  const neu = N.normalizeRecord({ instrument: 'ES', entryPrice: '7756.25', srTarget: [{ level: 'VWAP', price: '7750.75', ticksFromEntry: null }, { level: 'VAH', price: null, ticksFromEntry: 8 }] });
-  assert.deepEqual(neu.srTarget, [
-    { level: 'VWAP', price: 7750.75, ticksFromEntry: null, isNone: false, distanceTicks: 22 },
-    { level: 'VAH', price: null, ticksFromEntry: 8, isNone: false, distanceTicks: 8 }
+test('hladiny v blízkosti: starý tvar (klíče, srTarget / srStopLoss) i nový (nearLevels) → jeden seznam řádků', () => {
+  const old = N.normalizeRecord({ srTarget: ['VPOC_1M', 'NONE'], srStopLoss: [] });
+  assert.deepEqual(core(old.nearLevels), [{ level: 'VPOC_1M', price: null, ticksFromEntry: null, legacySide: 'TG', fromEntry: null }]);
+
+  const neu = N.normalizeRecord({ instrument: 'ES', side: 'short', entryPrice: '7756.25', nearLevels: [{ level: 'VWAP', price: '7750.75' }, { level: 'VAH', price: null, ticksFromEntry: 8, legacySide: 'SL' }] });
+  assert.deepEqual(core(neu.nearLevels), [
+    { level: 'VWAP', price: 7750.75, ticksFromEntry: null, legacySide: null, fromEntry: 22 },
+    { level: 'VAH', price: null, ticksFromEntry: 8, legacySide: 'SL', fromEntry: -8 }
   ]);
-  assert.equal(neu.srTarget.every(N.levelRowHasPlace), true);
 });
 
-test('vzdálenost SR hladiny: zapsané ticky mají přednost; cena se převede jen se známým tickem', () => {
-  const both = N.normalizeRecord({ instrument: 'ES', entryPrice: 7800, srTarget: [{ level: 'VAL', price: 7805, ticksFromEntry: 21 }] });
-  assert.equal(both.srTarget[0].distanceTicks, 21);
-  const unknownTick = N.normalizeRecord({ instrument: 'XYZ', entryPrice: 7800, srTarget: [{ level: 'VAL', price: 7805, ticksFromEntry: null }] });
-  assert.equal(unknownTick.srTarget[0].distanceTicks, null, 'bez velikosti ticku se nic neodhaduje');
-  const noEntry = N.normalizeRecord({ instrument: 'ES', srTarget: [{ level: 'VAL', price: 7805, ticksFromEntry: null }] });
-  assert.equal(noEntry.srTarget[0].distanceTicks, null);
+test('vzdálenost hladiny: z ceny jen se známým tickem a vstupem, z ticků jen u řádku ze starých dat', () => {
+  const both = N.normalizeRecord({ instrument: 'ES', side: 'long', entryPrice: 7800, nearLevels: [{ level: 'VAL', price: 7805, ticksFromEntry: 21 }] });
+  assert.deepEqual([both.nearLevels[0].fromEntry, both.nearLevels[0].ticksFromEntry], [20, null], 'řádek s cenou ticky nenese – rozhoduje cena');
+  const unknownTick = N.normalizeRecord({ instrument: 'XYZ', side: 'long', entryPrice: 7800, nearLevels: [{ level: 'VAL', price: 7805 }] });
+  assert.equal(unknownTick.nearLevels[0].fromEntry, null, 'bez velikosti ticku se nic neodhaduje');
+  const noEntry = N.normalizeRecord({ instrument: 'ES', side: 'long', plannedEntryPrice: 7800, nearLevels: [{ level: 'VAL', price: 7805 }] });
+  assert.equal(noEntry.nearLevels[0].fromEntry, null, 'jako v deníku: jen skutečný vstup');
 });
 
 test('stav hladin: none / present / unknown se nikdy neslijí – unknown není none', () => {
-  const st = raw => N.normalizeRecord(raw).srTargetState;
-  assert.equal(st({ srTargetNone: true, srTarget: [] }), 'none');
-  assert.equal(st({ srTarget: [{ level: 'NONE', price: null, ticksFromEntry: null }] }), 'none');
-  assert.equal(st({ srTarget: ['NONE', 'NONE'] }), 'none');
-  assert.equal(st({ srTarget: [{ level: 'VAL', price: 1, ticksFromEntry: null }] }), 'present');
+  const st = raw => N.normalizeRecord(raw).nearLevelsState;
+  assert.equal(st({ nearLevelsNone: true, nearLevels: [] }), 'none');
+  assert.equal(st({ srTargetNone: true, srStopLossNone: true }), 'none');
+  assert.equal(st({ srTarget: ['NONE', 'NONE'], srStopLoss: [{ level: 'NONE', price: null, ticksFromEntry: null }] }), 'none');
+  assert.equal(st({ nearLevels: [{ level: 'VAL', price: 1 }] }), 'present');
   assert.equal(st({ srTarget: ['NONE', 'VAL'] }), 'present');
-  assert.equal(st({ srTarget: [] }), 'unknown');
+  assert.equal(st({ nearLevels: [] }), 'unknown');
   assert.equal(st({}), 'unknown');
-  assert.equal(st({ srTargetNone: false, srTarget: [] }), 'unknown');
-  assert.equal(N.normalizeRecord({ srStopLossNone: true }).srStopLossState, 'none');
+  assert.equal(st({ nearLevelsNone: false, nearLevels: [] }), 'unknown');
+  assert.equal(st({ srStopLossNone: true }), 'unknown', 'jedna strana „žádná" nestačí');
   assert.equal(N.normalizeRecord({ entryLevels: ['NONE'] }).entryLevelsState, 'none');
   assert.equal(N.normalizeRecord({ ofConfirm: [] }).ofConfirmState, 'unknown');
 });
@@ -152,21 +149,20 @@ test('plánovaný cíl: MANUAL_EXIT ani cena převzatá z výstupu nejsou plán'
 
 test('missingContext: stejná definice jako missingContextKeys v deníku', () => {
   const full = {
-    setupCode: 'M2_OF', fillStatus: 'FILLED', trend: 'LONG', entryLevels: ['M2_EDGE'], srTarget: [], srTargetNone: true,
-    srStopLoss: [{ level: 'VAL', price: 1, ticksFromEntry: null }], ofConfirm: ['NONE'], targetLevel1: { type: 'VAL', price: 7806 },
+    setupCode: 'M2_OF', fillStatus: 'FILLED', trend: 'LONG', trendHtf: 'UP', grade: 'A', entryLevels: ['M2_EDGE'], nearLevels: [{ level: 'VAL', price: 1 }], ofConfirm: ['NONE'], targetLevel1: { type: 'VAL', price: 7806 },
     slPrice: 7797, mfeTicks: 24, mfeTicksDerived: true, maeTicks: 0, postExitFavorableTicks: 0, postExitAdverseTicks: 3
   };
   assert.deepEqual(N.normalizeRecord(full).missingContext, [], 'nula i dopočtená hodnota jsou vyplněné');
-  assert.deepEqual(N.normalizeRecord({ ...full, srTargetNone: undefined, setupCode: '', targetLevel1: { type: 'VAL', price: null } }).missingContext, ['setupCode', 'srTarget', 'targetLevel1']);
+  assert.deepEqual(N.normalizeRecord({ ...full, nearLevels: [], setupCode: '', targetLevel1: { type: 'VAL', price: null } }).missingContext, ['setupCode', 'nearLevels', 'targetLevel1']);
   assert.deepEqual(N.normalizeRecord({ ...full, fillStatus: 'NO_FILL', mfeTicks: null, slPrice: '' }).missingContext, [], 'u nenaplněného se průběh nekontroluje');
   assert.deepEqual(N.normalizeRecord({ recordType: 'SETUP_ONLY' }).missingContext, []);
 });
 
 test('neznámé klíče: sbírají se, nic se neskrývá ani nepřepisuje', () => {
   const r = N.normalizeRecord({ setupCode: 'MY_SETUP', srStopLoss: [{ level: 'GONE', price: 1, ticksFromEntry: null }], entryLevels: ['VWAP_DEV'], targetLevel1: { type: 'VAL', price: 1 } });
-  assert.deepEqual(r.unknownKeys, [{ field: 'setupCode', key: 'MY_SETUP' }, { field: 'srStopLoss', key: 'GONE' }]);
+  assert.deepEqual(r.unknownKeys, [{ field: 'setupCode', key: 'MY_SETUP' }, { field: 'nearLevels', key: 'GONE' }]);
   assert.equal(r.setupCode, 'MY_SETUP');
-  assert.equal(r.srStopLoss[0].level, 'GONE');
+  assert.equal(r.nearLevels[0].level, 'GONE');
 });
 
 test('příznaky původu hodnoty nejsou systémová pole', () => {
@@ -175,10 +171,12 @@ test('příznaky původu hodnoty nejsou systémová pole', () => {
   }
 });
 
-test('srTarget: chybějící nebo nesmyslné pole → prázdné pole', () => {
-  assert.deepEqual(N.normalizeRecord({}).srTarget, []);
-  assert.deepEqual(N.normalizeRecord({ srTarget: 'VAH' }).srTarget, []);
-  assert.deepEqual(N.normalizeRecord({ srTarget: [null, '', {}] }).srTarget, []);
+test('hladiny v blízkosti: chybějící nebo nesmyslné pole → prázdný seznam', () => {
+  assert.deepEqual(N.normalizeRecord({}).nearLevels, []);
+  assert.deepEqual(N.normalizeRecord({ nearLevels: 'VAH' }).nearLevels, []);
+  assert.deepEqual(N.normalizeRecord({ nearLevels: [null, '', {}, { level: 3 }] }).nearLevels, []);
+  assert.deepEqual(N.normalizeRecord({ srTarget: 'VAH' }).nearLevels, []);
+  assert.deepEqual(N.normalizeRecord({ srTarget: [null, '', {}] }).nearLevels, []);
 });
 
 test('wouldSkipLive: chybí ⇒ live-eligible; true ⇒ ne', () => {
@@ -323,7 +321,7 @@ test('normalizeExport: vlastní volby z taxonomie deníku nejsou neznámé klí�
   const trade = {
     id: 'a',
     targetLevel1: { type: 'CUSTOM_FIX_RRR', price: '7700' },
-    srTarget: [{ level: 'CUSTOM_LVN_DAY', price: '7710', ticksFromEntry: 8 }],
+    nearLevels: [{ level: 'CUSTOM_LVN_DAY', price: '7710' }],
     entryLevels: ['VAH', 'GONE']
   };
   const taxonomy = {
@@ -336,7 +334,7 @@ test('normalizeExport: vlastní volby z taxonomie deníku nejsou neznámé klí�
   // GONE není nikde – přejmenování ho platným klíčem neudělá.
   assert.deepEqual(e.records[0].unknownKeys, [{ field: 'entryLevels', key: 'GONE' }]);
   assert.equal(L.labelOfField('targetLevel1', 'CUSTOM_FIX_RRR'), 'Fix RRR');
-  assert.equal(L.labelOfField('srTarget', 'CUSTOM_LVN_DAY'), 'LVN Day', 'ENTRY_LEVEL platí i pro SR kolonky');
+  assert.equal(L.labelOfField('nearLevels', 'CUSTOM_LVN_DAY'), 'LVN Day', 'ENTRY_LEVEL platí i pro hladiny v blízkosti (NEAR_LEVEL bere volby z ENTRY_LEVEL)');
   assert.equal(L.labelOfField('entryLevels', 'VAH'), 'Horní hrana VA');
   assert.equal(L.labelOfField('entryLevels', 'GONE'), 'GONE');
   assert.equal(L.isKnown('TARGET_LEVEL', 'bad key'), false);

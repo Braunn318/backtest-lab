@@ -1,10 +1,13 @@
 'use strict';
-// Syntetické záznamy ve tvaru ai-exportu deníku 4.7.2 (revize R2). Reálná
-// data do repozitáře nepatří – fixtury z nich žijí v „Claude files/".
+// Syntetické záznamy ve tvaru ai-exportu deníku 4.7.2 (revize R2), od deníku
+// 4.8.1 s trendem 30m a známkou, od 4.8.5 s hladinami v blízkosti (kontext
+// v3: nearLevels / nearLevelsNone). Reálná data do repozitáře nepatří – fixtury
+// z nich žijí v „Claude files/".
 //
 // trade() je obchod, který projde všemi kontrolami zdraví dat a má VŠECHNA
 // kontextová pole vyplněná (missingContextKeys = []). Každý dostane jiný
-// čas i vstup, aby se nehlásil jako duplicita.
+// čas i vstup, aby se nehlásil jako duplicita; SL a cíl leží od vstupu
+// vždy na správné straně (12 t pod, 24 t nad).
 const N = require('../../app/normalize.js');
 
 let seq = 0;
@@ -12,22 +15,25 @@ let seq = 0;
 function trade(over = {}) {
   seq++;
   const minutes = 9 * 60 + seq * 10;
+  const entry = 7800 + seq;
   return {
     id: 't' + seq,
     instrument: 'ES',
     date: '2026-08-05',
     entryTime: `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
-    entryPrice: String(7800 + seq),
+    entryPrice: String(entry),
     side: 'long',
     result: 'target',
     fillStatus: 'FILLED',
     setupCode: 'M2_OF',
     trend: 'LONG',
+    trendHtf: 'UP',
+    grade: 'A',
     entryLevels: ['M2_EDGE'],
     ofConfirm: ['ABS_BID'],
-    srTarget: [{ level: 'NONE', price: null, ticksFromEntry: null }],
-    srStopLoss: [{ level: 'NONE', price: null, ticksFromEntry: null }],
-    slPrice: 7797,
+    nearLevels: [],
+    nearLevelsNone: true,
+    slPrice: entry - 3,
     exitTicks: 24,
     slTicks: 12,
     rMultiple: 2,
@@ -40,7 +46,7 @@ function trade(over = {}) {
     postExitFavorableTicks: 6,
     postExitAdverseTicks: 10,
     observedMinutes: 3,
-    targetLevel1: { type: 'VAL', price: 7806 },
+    targetLevel1: { type: 'VAL', price: entry + 6 },
     pnlRaw: 588.48,
     ...over
   };
@@ -59,6 +65,8 @@ const setup = (over = {}) => ({
 });
 
 const norm = raws => raws.map(N.normalizeRecord);
+// Celý deník: pořadí v dni a kontext dne se počítají přes všechny záznamy.
+const normAll = (raws, dayNotes = {}) => N.normalizeRecords(raws, dayNotes);
 const many = (count, make) => Array.from({ length: count }, () => make());
 
-module.exports = { trade, stop, setup, norm, many };
+module.exports = { trade, stop, setup, norm, normAll, many };

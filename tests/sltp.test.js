@@ -178,3 +178,19 @@ test('mřížka: počet obchodů nad pozorovaným rozsahem pro každé SL', () =
   assert.equal(g.aboveObserved[g.slList.indexOf(10)], 1);
   assert.equal(g.aboveObserved[g.slList.indexOf(8)], 0);
 });
+
+// ---------------------------------------------------------------- Souhrn (ZADANI_LAB_SOUHRN §2.2)
+
+test('nejčastější SL v ticích: z obchodů se slTicks, remíza vypíše obě hodnoty', () => {
+  const res = S.computeSlTp(norm([trade(), trade(), trade({ slTicks: 16 }), stop(), trade({ slTicks: null })]));
+  assert.deepEqual(res.slMode, { values: [12], count: 3, n: 4 });
+  const tie = S.computeSlTp(norm([trade(), trade({ slTicks: 8 })]));
+  assert.deepEqual(tie.slMode, { values: [8, 12], count: 1, n: 2 });
+  assert.deepEqual(S.computeSlTp([]).slMode, { values: [], count: 0, n: 0 });
+});
+
+test('pohyb po výstupu na targetu: medián zapsaného pokračování, 0 je měření', () => {
+  const res = S.computeSlTp(norm([trade({ postExitFavorableTicks: 0 }), trade({ postExitFavorableTicks: 4 }), trade({ postExitFavorableTicks: 10 }), trade({ postExitFavorableTicks: null }), stop()]));
+  assert.deepEqual(res.tpAfter, { n: 3, targets: 4, p50: 4 });
+  assert.deepEqual(S.computeSlTp([]).tpAfter, { n: 0, targets: 0, p50: null });
+});

@@ -1,57 +1,95 @@
 'use strict';
-// Obrazovka „Síla hladin – jak silné jsou hladiny proti TP a proti SL?".
-// Jen vykresluje výsledek LabStrength.computeStrength. Strana, která nemá
-// dost otestovaných hladin, se nekreslí – jen řádek, co jí chybí; ze dvou
-// případů nedělá procenta.
+// Obrazovka „Hladiny – co hladiny v blízkosti v obchodu dělají?"
+// (docs/ZADANI_KONTEXT_V3.md B2). Jen vykresluje LabStrength.computeStrength
+// z LabOverview.analyses – nic nepočítá.
+//
+// Deník hladiny jen měří. Tady je rozložení podle vzdálenosti od vstupu po
+// 1 ticku (sloučení po 2 / 4 t je volba zobrazení): kolik hladin cena dotkla,
+// jak daleko za ně zajela a jak obchod dopadl. Žádné koše, role ani tolerance.
 
 (function () {
   const ST = window.LabStrength;
   const O = window.LabOverview;
-  const { esc, pct, num, sampleNote, recordCells, sections } = window.LabUI;
+  const SM = window.LabSummary;
+  const UI = window.LabSummaryUI;
+  const { esc, pct, num, sampleNote, sections } = window.LabUI;
 
-  const STATUS_TEXT = { held: 'zastavila', broken: 'propadla', untested: 'netestována', noDistance: 'bez ceny / vzdálenosti', noExcursion: 'bez naměřené excursion' };
+  const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '') + num(Math.abs(v));
+  const binLabel = (b, sign = true) => {
+    const f = sign ? signed : num;
+    return b.from === b.to ? `${f(b.from)} t` : `${f(b.from)} až ${f(b.to)} t`;
+  };
+  const outcome = b => (b.winRate == null ? (b.decided ? `${b.wins} z ${b.decided}` : '—') : `${pct(b.winRate)} <span class="muted">(${b.wins} z ${b.decided})</span>`);
+  const NOTE = `Dotčena = poloha leží v dráze ceny od −MAE do +MFE (jen naměřené; nad vstupem rozhoduje MFE, na vstupu a pod ním MAE). Nedotčená hladina z reakce vypadává – jen se spočítá. Přesah = jak daleko cena zajela za hladinu (nad vstupem MFE − poloha, pod ním MAE + poloha). Výsledek = podíl obchodů na cíli z obchodů na cíli nebo SL, jen u dotčených. Řádky, ne obchody: obchod s více hladinami je ve více řádcích. Šedě pod ${ST.GREY_BELOW} dotčených; pod ${ST.NO_PCT_BELOW} bez procent a mediánu.`;
 
-  function levelTable(side, tolerance) {
-    const rows = side.levels.map(l => {
-      const detail = l.items.map(x => `<tr>${recordCells(x.record)}<td class="num">${num(x.row.distanceTicks)}</td><td class="num">${num(x.record[side.key === 'target' ? 'mfeMeasured' : 'maeMeasured'])}</td><td>${esc(STATUS_TEXT[x.status])}${x.overshoot != null ? ` o ${num(x.overshoot)} t` : ''}</td></tr>`).join('');
-      return `<tr class="${l.grey ? 'grey' : ''}">
-        <td><details><summary><b>${esc(l.label)}</b>${l.known ? '' : ' <span class="pill warn">neznámý klíč</span>'} <span class="mono muted">${esc(l.level)}</span></summary>
-          <div class="table-scroll"><table class="items"><thead><tr><th>Datum</th><th>Vstup</th><th>Směr</th><th class="num">Cena</th><th>Výsledek</th><th class="num">Vzdálenost</th><th class="num">${esc(side.excursionLabel)}</th><th>Stav</th></tr></thead><tbody>${detail}</tbody></table></div>
-        </details></td>
-        <td class="num"><b>${l.tested}</b></td>
-        <td class="num">${l.heldPct == null ? (l.tested ? `${l.held} z ${l.tested}` : '—') : pct(l.heldPct)}</td>
-        <td class="num">${l.brokenPct == null ? (l.tested ? `${l.broken} z ${l.tested}` : '—') : pct(l.brokenPct)}</td>
-        <td class="num">${l.medianOvershoot == null ? '—' : num(l.medianOvershoot) + ' t'}</td>
-        <td class="num muted">${l.untested}</td>
-        <td class="num muted">${l.noData}</td>
-      </tr>`;
-    }).join('');
-    return `<div class="table-scroll"><table><thead><tr>
-      <th>Hladina</th><th class="num">N testovaných</th><th class="num">% zastavila</th><th class="num">% propadla</th><th class="num">Medián přesahu</th><th class="num">Netestováno</th><th class="num">Nelze vyhodnotit</th>
-    </tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="muted" style="font-size:12px">Zastavila = ${esc(side.excursionLabel)} do ±${num(tolerance)} t od hladiny; propadla = přes hladinu o víc než ${num(tolerance)} t; netestována = cena k hladině nedošla – do síly NEvstupuje. Řazeno podle % zastavila. Šedě N &lt; ${ST.GREY_BELOW}; pod ${ST.NO_PCT_BELOW} bez procent – procento ze dvou případů není údaj.</p>`;
+  // Volba sloučení – jen zobrazení, uloží se do pohledů (views.levelBin).
+  function binSelect(bin) {
+    return `<label class="muted bin-select">Rozložení <select data-view="levelBin">${ST.BINS.map(b => `<option value="${b}"${b === bin ? ' selected' : ''}>po ${b} t</option>`).join('')}</select></label>`;
   }
 
-  function sideSection(side, tolerance) {
-    const st = O.levelSideState(side);
+  function distTable(dist, firstCol = 'Od vstupu') {
+    const rows = dist.bins.map(b => `<tr class="${b.grey ? 'grey' : ''}"><td><b>${esc(binLabel(b))}</b></td><td class="num"><b>${b.n}</b></td>`
+      + `<td class="num">${b.touched}</td><td class="num">${b.untouched}</td><td class="num muted">${b.noExcursion}</td>`
+      + `<td class="num">${outcome(b)}</td><td class="num">${b.medianOvershoot == null ? '—' : num(b.medianOvershoot) + ' t'}</td></tr>`).join('');
+    return `<div class="table-scroll"><table><thead><tr><th>${esc(firstCol)}</th><th class="num">N řádků</th><th class="num">Dotčeno</th><th class="num">Nedotčeno</th><th class="num">Bez dráhy</th><th class="num">Výsledek dotčených</th><th class="num">Medián přesahu</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function distSection(res, st) {
     return {
-      id: 'side-' + side.key, title: side.label, state: st.state, missing: st.missing, headline: esc(st.headline),
-      body: `<p class="section-sub">Řádků s hladinou ${side.totalRows} · s cenou nebo vzdáleností ${side.withPlace} · otestováno ${side.tested} · netestováno ${side.untested}. Měří se naměřeným ${esc(side.excursionLabel)} (dopočtené se nepočítá). ${sampleNote(side.tested)}</p>
-      ${side.coverageMessage ? `<div class="obs-warning">⚠ ${esc(side.coverageMessage)}</div>` : ''}
-      ${levelTable(side, tolerance)}`
+      id: 'dist', title: 'Podle vzdálenosti od vstupu', state: st.state, missing: st.missing, headline: esc(st.headline),
+      body: `<div class="section-tools">${binSelect(res.bin)}<span>${sampleNote(res.touched)}</span></div>
+        <p class="section-sub">Řádků ${res.totalRows} · s polohou ${res.withDistance} · bez polohy ${res.noDistance} (bez ceny – řádek ze starých dat bez ticků) · dotčeno ${res.touched} (${res.touchedAhead} ve směru, ${res.touchedBehind} na vstupu a proti) · nedotčeno ${res.untouched} · bez naměřené MFE / MAE ${res.noExcursion}. Poloha + = ve směru obchodu.</p>
+        ${distTable(res.dist)}
+        <p class="muted" style="font-size:12px">${esc(NOTE)}</p>`
+    };
+  }
+
+  // Zvlášť podle typu hladiny / podle netest – test: souhrnný řádek a rozložení.
+  function splitSection(id, title, groups, st, note) {
+    const body = groups.map(g => `<details class="split"><summary><b>${esc(g.label)}</b>${g.known === false ? ' <span class="pill warn">neznámý klíč</span>' : ''}
+        <span class="muted">· ${g.n} řádků · dotčeno ${g.touched} · výsledek ${g.winRate == null ? '—' : pct(g.winRate)} · medián přesahu ${g.medianOvershoot == null ? '—' : num(g.medianOvershoot) + ' t'}</span></summary>
+        ${g.dist.bins.length ? distTable(g.dist) : '<p class="muted">Žádný řádek s polohou.</p>'}</details>`).join('');
+    return {
+      id, title, state: st.state, missing: st.missing,
+      headline: esc(groups.filter(g => g.n).map(g => `${g.label} ${g.touched}`).join(' · ') || 'žádný řádek'),
+      body: `<p class="section-sub">${esc(note)}</p>${body}`
+    };
+  }
+
+  function pairTable(split, keys, labels, firstCol) {
+    const rows = split.dist.bins.map(b => `<tr><td><b>${esc(binLabel(b, false))}</b></td><td class="num">${b[keys[0]]}</td><td class="num">${b[keys[1]]}</td></tr>`).join('');
+    return `<div class="table-scroll"><table><thead><tr><th>${esc(firstCol)}</th><th class="num">${esc(labels[0])}</th><th class="num">${esc(labels[1])}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function stopBehindSection(sb, bin) {
+    const st = O.stopBehindState(sb);
+    return {
+      id: 'stop-behind', title: 'SL za nejbližší hladinou', state: st.state, missing: st.missing, headline: esc(st.headline),
+      body: `<p class="section-sub">O kolik ticků ležel SL za nejbližší hladinou mezi SL a cílem (zahrnuje i hladinu nad vstupem do longu) – u stopnutých a u přeživších obchodů. Počty obchodů po ${bin} t, žádné procento. Odpovídá na „kolik ticků za hladinou ještě chrání SL“ – z dat, ne z nastavení.</p>
+        ${pairTable(sb, ['stopped', 'survived'], ['Stopnuté', 'Přeživší'], 'SL za hladinou')}
+        <p>${sampleNote(Math.min(sb.stopped.n, sb.survived.n))} <span class="muted">(menší ze skupin · bez hladiny mezi SL a cílem ${sb.unknown}, nevstupuje)</span></p>`
+    };
+  }
+
+  function nearestAheadSection(na, bin) {
+    const st = O.nearestAheadState(na);
+    return {
+      id: 'nearest-ahead', title: 'Nejbližší hladina ve směru', state: st.state, missing: st.missing, headline: esc(st.headline),
+      body: `<p class="section-sub">Jak daleko ve směru obchodu ležela nejbližší hladina mezi vstupem a cílem – u obchodů, které došly na cíl, a u ostatních. V R vůči vzdálenosti SL. Počty obchodů po ${bin} t.</p>
+        ${pairTable(na, ['reached', 'missed'], ['Cíl dosažen', 'Nedosažen'], 'Hladina ve směru')}
+        <p>${sampleNote(Math.min(na.reached.n, na.missed.n))} <span class="muted">(menší ze skupin · bez hladiny ve směru ${na.unknown}, nevstupuje)</span></p>`
     };
   }
 
   function controlSection(cg) {
     const st = O.controlState(cg);
-    const isTarget = cg.key === 'target';
-    const col = s => `<td class="num">${s.n}</td><td class="num">${pct(s.winRate)}</td><td class="num">${pct(isTarget ? s.targetHit : s.stopHit)}</td><td class="num">${num(s.medianExcursion)} t <span class="muted">(${s.excursionN})</span></td>`;
+    const col = s => `<td class="num">${s.n}</td><td class="num">${pct(s.winRate)}</td><td class="num">${pct(s.targetHit)}</td><td class="num">${pct(s.stopHit)}</td>`;
     return {
-      id: 'control-' + cg.key, title: `Kontrolní skupina: ${cg.label}`, state: st.state, missing: st.missing, headline: esc(st.headline),
-      body: `<p class="section-sub">Obchody s vědomě „žádná hladina v cestě“ proti obchodům, kde hladina byla. ${isTarget ? 'Odpovídá na „stojí za to mířit za hladinu, nebo se tam pohyb spolehlivě zastaví?“' : 'Odpovídá na „chrání hladina mezi vstupem a SL, nebo nic nemění?“'} Nevyplněné obchody se jen spočítají a do porovnání nevstupují.</p>
-      <div class="table-scroll"><table><thead><tr><th>Skupina</th><th class="num">N</th><th class="num">Win rate</th><th class="num">${isTarget ? 'Cíl dosažen' : 'SL zasažen'}</th><th class="num">Medián ${esc(cg.excursionLabel)}</th></tr></thead><tbody>
-        <tr><td><b>Žádná hladina</b></td>${col(cg.none)}</tr>
-        <tr><td><b>Hladina v cestě</b></td>${col(cg.present)}</tr>
+      id: 'control', title: 'Kontrolní skupina: s hladinou × žádná hladina', state: st.state, missing: st.missing, headline: esc(st.headline),
+      body: `<p class="section-sub">Obchody s vědomě „žádná hladina v blízkosti“ proti obchodům, kde hladina byla. Nevyplněné se jen spočítají a do porovnání nevstupují.</p>
+      <div class="table-scroll"><table><thead><tr><th>Skupina</th><th class="num">N</th><th class="num">Win rate</th><th class="num">Cíl dosažen</th><th class="num">SL zasažen</th></tr></thead><tbody>
+        <tr><td><b>Žádná hladina v blízkosti</b></td>${col(cg.none)}</tr>
+        <tr><td><b>S hladinou</b></td>${col(cg.present)}</tr>
         <tr class="grey"><td>Nevyplněno <span class="muted">(nevstupuje)</span></td><td class="num">${cg.unknown.n}</td><td colspan="3" class="muted">—</td></tr>
       </tbody></table></div>
       <p>${sampleNote(Math.min(cg.none.n, cg.present.n))} <span class="muted">(menší ze skupin)</span></p>`
@@ -59,18 +97,20 @@
   }
 
   function render(ctx) {
-    const tolerance = ctx.views.levelTolerance != null ? ctx.views.levelTolerance : ST.DEFAULT_TOLERANCE;
-    const res = ST.computeStrength(ctx.perf, { tolerance });
-    const top = `<div class="card slim">
-      <div class="hero-stats" style="margin:0">
-        ${res.sides.map(s => `<span>${esc(s.label)}: <b>${s.tested}</b> otestovaných · ${s.withPlace} z ${s.totalRows} řádků s cenou nebo vzdáleností</span>`).join('')}
-        <span>Tolerance „zastavila“ ±${num(tolerance)} t (nastavuje se vlevo)</span>
-      </div>
-      <p class="muted" style="font-size:12px;margin:8px 0 0">Vzdálenost se nedopočítává odhadem – jen přesným přepočtem ceny přes velikost ticku. Z N = 2 se nedělají závěry.</p>
-    </div>`;
-    return top + sections('levels', [...res.sides.map(s => sideSection(s, tolerance)), ...res.control.map(controlSection)], ctx.views);
+    const res = O.analyses(ctx).strength;
+    const st = O.levelsState(res);
+    // Nahoře tatáž karta jako v Souhrnu.
+    const card = UI.questionCard(SM.levelsCard(res));
+    return card + sections('levels', [
+      distSection(res, st),
+      splitSection('by-type', 'Podle typu hladiny', res.byType, st, 'Každý typ hladiny zvlášť, typy podle počtu dotčených. Vlastní volby deníku se ukazují pod svým popiskem – Lab je neslučuje odhadem.'),
+      splitSection('by-test', 'Podle netest / test', res.byTest, st, `Netest = cena se hladiny v seanci ještě nedotkla. Stav má ${res.totalRows - res.testStateUnknown} z ${res.totalRows} řádků; řádky bez stavu (${res.testStateUnknown}) se do rozpadu nepočítají.`),
+      stopBehindSection(res.stopBehind, res.bin),
+      nearestAheadSection(res.nearestAhead, res.bin),
+      controlSection(res.control)
+    ], ctx.views);
   }
 
   window.LabScreens = window.LabScreens || {};
-  window.LabScreens.levels = { title: 'Síla hladin', question: 'Jak silné jsou hladiny proti TP a proti SL?', render };
+  window.LabScreens.levels = { title: 'Hladiny', question: 'Co hladiny v blízkosti v obchodu dělají?', render };
 })();

@@ -254,6 +254,75 @@ details.split>summary{cursor:pointer;font-size:13.5px}
 .fill-list li{margin-bottom:8px}
 .fill-hint{font-size:12px}
 .eta-list{margin:0;padding-left:20px;line-height:1.55;font-size:13.5px}
+/* Výběr nahoře: deník · období · instrument · setup. */
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:-6px 0 16px;font-size:12.5px;color:var(--muted)}
+.filters label{display:flex;align-items:center;gap:6px}
+.filters select,.filters input[type="date"]{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:9px;max-width:240px}
+/* Grafy (P/L po týdnech, equity). */
+.ch-scroll{overflow-x:auto}
+.chart{display:block;max-width:100%}
+.chart.wide{width:100%;height:180px}
+.ch-zero{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.ch-bar.pos{fill:var(--green)}.ch-bar.neg{fill:var(--red)}
+.ch-bar.s-variant{opacity:.65}
+.ch-val{font-size:10px;fill:var(--text2);text-anchor:middle;font-variant-numeric:tabular-nums}
+.ch-lab{font-size:10px;fill:var(--muted);text-anchor:middle}
+.ch-line{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke:var(--muted)}
+.ch-line.s-actual{stroke:var(--text2)}.ch-line.s-variant{stroke:var(--blue)}.ch-line.s-saved1{stroke:var(--orange)}.ch-line.s-saved2{stroke:var(--green)}
+.ch-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text2);margin-top:6px}
+.ch-legend i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle;background:var(--muted)}
+.ch-axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px}
+.ch-legend i.swatch{width:10px;height:10px;border-radius:2px;background:linear-gradient(90deg,var(--green) 50%,var(--red) 50%)}
+.ch-legend .s-variant i.swatch{opacity:.65}
+.ch-legend .s-actual i{background:var(--text2)}.ch-legend .s-variant i{background:var(--blue)}.ch-legend .s-saved1 i{background:var(--orange)}.ch-legend .s-saved2 i{background:var(--green)}
+/* Diagnóza. */
+.dg-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+.dg-tiles .sum-tile-value{font-size:21px;white-space:normal;line-height:1.2}
+.dg-h2{font-size:18px;margin:22px 0 4px}
+.dg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+.dg-card{padding:13px 15px;margin-bottom:0}
+.dg-card.is-na{opacity:.6;border-style:dashed;box-shadow:none}
+.dg-head{display:flex;align-items:center;gap:8px}
+.dg-kicker{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;flex:1;min-width:0}
+.dg-impact{font-weight:800;font-size:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dg-text{font-size:14.5px;line-height:1.45;margin:8px 0 2px}
+.dg-rest{font-size:12.5px;margin:0 0 8px}
+.dg-bars{display:grid;gap:4px;margin:4px 0 8px}
+.dg-bar{display:grid;grid-template-columns:95px 1fr 120px;gap:8px;align-items:center;font-size:11.5px;color:var(--muted)}
+.dg-bar b{text-align:right;font-variant-numeric:tabular-nums}
+.dg-track{height:9px;background:var(--panel2);border-radius:5px;overflow:hidden}
+.dg-track i{display:block;height:100%;border-radius:5px}
+.dg-track i.pos{background:var(--green)}.dg-track i.neg{background:var(--red)}
+.dg-foot{margin:2px 0 4px}
+details.trades{margin-top:6px}
+details.trades>summary{cursor:pointer;color:var(--blue);font-size:12.5px;user-select:none}
+.trade-list td{font-size:12px;padding:5px 7px}
+.trade-list td.note{color:var(--text2);max-width:320px}
+.dg-entry{padding:14px 16px}
+.dg-line{display:grid;grid-template-columns:22px 52px 1fr;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.45}
+.dg-line:first-of-type{border-top:0}
+.dg-all-block{margin-bottom:16px}
+.dg-words{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.dg-words textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:8px;font:inherit;resize:vertical}
+/* Co kdyby. */
+.wi-presets .btn-row{margin-top:10px}
+.wi-current{margin:10px 0 0;font-size:13.5px}
+.wi-blocks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+@media(max-width:1100px){.wi-blocks{grid-template-columns:1fr}}
+.wi-block{margin-bottom:12px}
+.wi-form td{padding:6px 8px}
+.wi-form input[type="number"],.wi-radios input[type="number"]{width:90px;background:var(--panel);border:1px solid var(--line);color:var(--text);padding:5px 7px;border-radius:8px}
+.wi-radios{display:grid;gap:8px;font-size:13.5px}
+.wi-radio{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wi-filter{margin:0 0 10px}
+.wi-filter-title{font-size:12px;color:var(--muted);margin-bottom:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;background:var(--panel2)}
+.chip.off{opacity:.5;text-decoration:line-through}
+.chip input{margin:0}
+.wi-table td,.wi-table th{font-size:13px}
+.wi-table tr.strong td{background:rgba(var(--blue-rgb),.06)}
+.wi-cut{margin:0;padding-left:20px;line-height:1.6;font-size:13.5px}
 @media(max-width:820px){.app{grid-template-columns:1fr}.sidebar{position:static;height:auto}}
 </style>
 </head>
@@ -264,43 +333,20 @@ details.split>summary{cursor:pointer;font-size:13.5px}
     <div class="brand-sub">Čte deník, nic nezapisuje</div>
 
     <nav class="nav" id="nav">
-      <button type="button" data-screen="summary">Souhrn<span class="q">Co se ví a jak moc?</span></button>
-      <button type="button" class="nav-group" id="navDetails" aria-expanded="true" aria-controls="navDetailsList">Podrobnosti <span class="nav-chev">▸</span></button>
-      <div class="nav-sub" id="navDetailsList">
+      <button type="button" data-screen="diagnosis">Diagnóza<span class="q">Kde ztrácím a kde vydělávám?</span></button>
+      <button type="button" data-screen="whatif">Co kdyby<span class="q">Jiná pravidla dne, cíl nebo SL</span></button>
+      <button type="button" data-screen="health">Data<span class="q">Zdraví dat a co vyplnit</span></button>
+      <button type="button" class="nav-group" id="navAdvanced" aria-expanded="false" aria-controls="navAdvancedList">Pokročilé <span class="nav-chev">▸</span></button>
+      <div class="nav-sub collapsed" id="navAdvancedList">
         <button type="button" data-screen="sltp">SL a TP<span class="q">Zadávám je správně?</span></button>
         <button type="button" data-screen="levels">Hladiny<span class="q">Co hladiny v obchodu dělají?</span></button>
         <button type="button" data-screen="context">Kontext<span class="q">V jakém kontextu to vychází?</span></button>
         <button type="button" data-screen="risk">Denní risk<span class="q">Pomáhá denní stop?</span></button>
       </div>
-      <div class="nav-label">Data</div>
-      <div class="nav-sub">
-        <button type="button" data-screen="health">Zdraví dat a co vyplnit<span class="q">Sbírám použitelná data?</span></button>
-      </div>
     </nav>
 
     <div class="side-group">
-      <label for="journalSelect">Deník</label>
-      <select id="journalSelect"></select>
       <label class="toggle"><input type="checkbox" id="showOutsideIndex"> Ukázat soubory mimo index</label>
-    </div>
-
-    <div class="side-group">
-      <span class="side-label">Rozsah dat</span>
-      <div class="date-row">
-        <span>Od</span><input type="date" id="dateFrom" aria-label="Od">
-        <span>Do</span><input type="date" id="dateTo" aria-label="Do">
-      </div>
-      <div class="btn-row"><button class="btn" id="dateReset" type="button">Celé období</button></div>
-    </div>
-
-    <div class="side-group">
-      <label for="instrumentSelect">Instrument</label>
-      <select id="instrumentSelect"></select>
-    </div>
-
-    <div class="side-group">
-      <label for="setupSelect">Setup</label>
-      <select id="setupSelect"></select>
     </div>
 
     <div class="side-group">
@@ -335,10 +381,19 @@ details.split>summary{cursor:pointer;font-size:13.5px}
   <main class="main">
     <div class="topbar">
       <div>
-        <h1 id="screenTitle">Souhrn</h1>
-        <div class="sub" id="screenQuestion">Co se z dat ví a jak moc</div>
+        <h1 id="screenTitle">Diagnóza</h1>
+        <div class="sub" id="screenQuestion">Kde ztrácím a kde vydělávám</div>
       </div>
       <button class="btn" id="reload" type="button">Načíst znovu</button>
+    </div>
+    <!-- Výběr platí pro všechny obrazovky a pamatuje se (ZADANI_LAB_PRESTAVBA §1). -->
+    <div class="filters" id="filters">
+      <label>Deník <select id="journalSelect"></select></label>
+      <label>Od <input type="date" id="dateFrom" aria-label="Od"></label>
+      <label>Do <input type="date" id="dateTo" aria-label="Do"></label>
+      <button class="btn" id="dateReset" type="button">Celé období</button>
+      <label>Instrument <select id="instrumentSelect"></select></label>
+      <label>Setup <select id="setupSelect"></select></label>
     </div>
     <div id="content"><div class="empty-state">Načítám…</div></div>
   </main>
@@ -355,8 +410,12 @@ details.split>summary{cursor:pointer;font-size:13.5px}
 <script src="variants.js"></script>
 <script src="overview.js"></script>
 <script src="summary.js"></script>
+<script src="diagnosis.js"></script>
+<script src="whatif.js"></script>
 <script src="ui-common.js"></script>
 <script src="ui-summary.js"></script>
+<script src="ui-diagnosis.js"></script>
+<script src="ui-whatif.js"></script>
 <script src="ui-health.js"></script>
 <script src="ui-sltp.js"></script>
 <script src="ui-levels.js"></script>

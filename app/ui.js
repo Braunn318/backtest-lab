@@ -13,7 +13,7 @@
   const api = window.labAPI;
   const $ = id => document.getElementById(id);
   const SM = window.LabSummary;
-  // Navigace (ZADANI_LAB_SOUHRN §2.1): Souhrn · Podrobnosti ▸ · Data.
+  // Navigace (ZADANI_LAB_PRESTAVBA §1): Diagnóza · Co kdyby · Data · Pokročilé ▸.
   const SCREENS = SM.NAV.flatMap(x => x.screen ? [x.screen] : x.screens);
 
   const state = {
@@ -28,6 +28,7 @@
   // ------------------------------------------------------------- pohledy
 
   let saveTimer = null;
+  let lastCtx = null;   // ctx posledního renderu – pro události obrazovky (kopírování textu)
   function saveViews() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
@@ -125,11 +126,11 @@
   function renderSidebar() {
     const screen = currentScreen();
     document.querySelectorAll('#nav button[data-screen]').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
-    // Skupina Podrobnosti: sbalení se pamatuje (views.navDetailsClosed). Sbalená
-    // skupina nechá vidět jen právě otevřenou obrazovku.
-    const closed = !!state.views.navDetailsClosed;
-    $('navDetails').setAttribute('aria-expanded', String(!closed));
-    $('navDetailsList').classList.toggle('collapsed', closed);
+    // Skupina Pokročilé: ve výchozím stavu sbalená, rozbalení se pamatuje
+    // (views.navAdvancedOpen). Sbalená nechá vidět jen právě otevřenou obrazovku.
+    const closed = !state.views.navAdvancedOpen;
+    $('navAdvanced').setAttribute('aria-expanded', String(!closed));
+    $('navAdvancedList').classList.toggle('collapsed', closed);
 
     const journals = visibleJournals();
     fillSelect($('journalSelect'),
@@ -140,7 +141,9 @@
 
     const records = state.journal ? state.journal.records : [];
     const instruments = [...new Set(records.map(r => r.instrument).filter(Boolean))].sort();
-    fillSelect($('instrumentSelect'), [{ value: '', label: 'Všechny' }, ...instruments.map(i => ({ value: i, label: i }))], state.views.instrument || '');
+    // Výchozí = nejčastější instrument v deníku; „Všechny" je vědomá volba.
+    const instrument = state.views.instrument || H.defaultInstrument(records) || H.ALL_INSTRUMENTS;
+    fillSelect($('instrumentSelect'), [{ value: H.ALL_INSTRUMENTS, label: 'Všechny' }, ...instruments.map(i => ({ value: i, label: i }))], instrument);
     const setups = [...new Set(records.map(r => r.setupCode).filter(Boolean))].sort();
     const noSetup = records.filter(r => r.isTrade && !r.setupCode).length;
     fillSelect($('setupSelect'), [
@@ -229,11 +232,12 @@
       content.innerHTML = errorBox + '<div class="card empty-state">Žádný deník k zobrazení. Zkontroluj zdroj dat vlevo.</div>';
       return;
     }
-    const filtered = H.filterRecords(state.journal.records, state.views);
+    const filtered = H.filterRecords(state.journal.records, H.filtersOf(state.journal.records, state.views));
     const options = H.includeOf(state.views);
     const health = H.computeHealth(filtered, options);
     const perf = H.partition(filtered, options).perf;
     const ctx = { records: filtered, perf, health, views: state.views, options };
+    lastCtx = ctx;
     let body, scope = null;
     try {
       body = screen.render(ctx);
@@ -248,7 +252,14 @@
 
   function bind() {
     document.querySelectorAll('#nav button[data-screen]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.screen)));
-    $('navDetails').addEventListener('click', () => { setView('navDetailsClosed', !state.views.navDetailsClosed); renderSidebar(); });
+    $('navAdvanced').addEventListener('click', () => { setView('navAdvancedOpen', !state.views.navAdvancedOpen); renderSidebar(); });
+    // Ovládání uvnitř obrazovky (Co kdyby, nastavení diagnózy): obrazovka si událost
+    // vyřídí sama přes onClick / onChange a vrátí true.
+    const screenApi = () => ({ views: state.views, setView, render });
+    $('content').addEventListener('click', e => {
+      const screen = window.LabScreens[currentScreen()];
+      if (screen.onClick) screen.onClick(e, screenApi(), lastCtx);
+    });
     // Odkazy uvnitř obrazovek: „Podrobnosti →“, „Co vyplnit → Data“.
     $('content').addEventListener('click', e => {
       const link = e.target.closest && e.target.closest('a[data-goto]');
@@ -290,6 +301,8 @@
     // Číselná pole uvnitř obrazovky (data-view="klíč"): prázdné = vypnuto.
     // Rozsah hlídá i hlavní proces při ukládání.
     $('content').addEventListener('change', e => {
+      const screen = window.LabScreens[currentScreen()];
+      if (screen.onChange && screen.onChange(e, screenApi(), lastCtx)) return;
       const key = e.target.dataset && e.target.dataset.view;
       if (!key) return;
       const v = e.target.value.trim() === '' ? NaN : Number(e.target.value.replace(',', '.'));
@@ -326,7 +339,7 @@
   async function init() {
     bind();
     await loadState();
-    // Po spuštění se vždy otevře Souhrn.
+    // Po spuštění se vždy otevře Diagnóza.
     state.views.screen = SM.START_SCREEN;
     await reloadAll();
   }

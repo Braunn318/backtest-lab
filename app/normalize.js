@@ -72,7 +72,8 @@
     'id', 'date', 'entryTime', 'exitTime', 'instrument', 'side', 'result',
     'setupCode', 'fillStatus', 'trend', 'maxLevel', 'reason', 'wouldSkipReason',
     'externalAccount', 'mfeTicksSource', 'maeTicksSource',
-    'trendHtf', 'grade', 'gradeSetAt', 'absLocation', 'entryTestNo'
+    'trendHtf', 'grade', 'gradeSetAt', 'absLocation', 'entryTestNo',
+    'comment', 'psychBefore'
   ];
   const LIST_FIELDS = ['entryLevels', 'ofConfirm'];
   const NONE_KEY = 'NONE';
@@ -104,6 +105,15 @@
     ES: 0.25, MES: 0.25, NQ: 0.25, MNQ: 0.25,
     YM: 1, MYM: 1, RTY: 0.1, M2K: 0.1,
     CL: 0.01, MCL: 0.01, GC: 0.1, MGC: 0.1
+  };
+
+  // Hodnota jednoho ticku v USD na kontrakt (specifikace kontraktu, ne odhad).
+  // Jen pro přepočet výsledku obchodu při jiném SL / cíli (Co kdyby) a pro
+  // 1 R v USD (riziko obchodu). Neznámý instrument → null, přepočet nejde.
+  const TICK_VALUES = {
+    ES: 12.5, MES: 1.25, NQ: 5, MNQ: 0.5,
+    YM: 5, MYM: 0.5, RTY: 5, M2K: 0.5,
+    CL: 10, MCL: 1, GC: 10, MGC: 1
   };
 
   // Úrovně původu MFE/MAE. Do výpočtů vstupuje jen 'nt8' a 'manual'.
@@ -151,6 +161,19 @@
     const text = textOrNull(instrument);
     const key = text ? text.toUpperCase().split(' ')[0] : null;
     return key && Object.prototype.hasOwnProperty.call(TICK_SIZES, key) ? TICK_SIZES[key] : null;
+  }
+
+  function tickValueOf(instrument) {
+    const text = textOrNull(instrument);
+    const key = text ? text.toUpperCase().split(' ')[0] : null;
+    return key && Object.prototype.hasOwnProperty.call(TICK_VALUES, key) ? TICK_VALUES[key] : null;
+  }
+
+  // Plán dne, který deník kopíruje k obchodu: { setup, psychology, note } – jen text.
+  function dailyPlanOf(value) {
+    if (!value || typeof value !== 'object') return null;
+    const out = { setup: textOrNull(value.setup), psychology: textOrNull(value.psychology), note: textOrNull(value.note) };
+    return out.setup || out.psychology || out.note ? out : null;
   }
 
   function roundTicks(v) {
@@ -630,6 +653,8 @@
     for (const key of LIST_FIELDS) out[key] = listOf(src[key]);
 
     out.tickSize = tickSizeOf(out.instrument);
+    out.tickValue = tickValueOf(out.instrument);
+    out.dailyPlan = dailyPlanOf(src.dailyPlan);
     out.entryLevelsState = levelStateOf(out.entryLevels, false);
     out.ofConfirmState = levelStateOf(out.ofConfirm, false);
 
@@ -734,6 +759,15 @@
     if (inTradeAdverseKnown && adv != null && exitT != null) advParts.push(roundTicks(adv - exitT));
     out.maxAdverseMeasured = advParts.length ? Math.max(0, ...advParts) : null;
     out.adverseObservedAfterExit = adv != null;
+    // Vrátila se cena po výstupu až na vstup? Stejné pravidlo jako touchedEntry
+    // v deníku (points.js: protipohyb po výstupu ≥ exitTicks, jen u výstupu
+    // v zisku a ne na SL). Navíc: výstup na vstupu nebo pod ním (BE, ztráta,
+    // SL) je fakt exekuce – cena na vstupu byla. Jinak null (nevím).
+    out.backToEntry = exitT == null ? null
+      : exitT <= 0 ? true
+        : adv != null && !out.isStopped ? adv >= exitT : null;
+    // 1 R v USD = riziko obchodu: SL v ticích × hodnota ticku × kontrakty.
+    out.riskUSD = out.slTicks > 0 && out.tickValue != null && out.contracts > 0 ? out.slTicks * out.tickValue * out.contracts : null;
 
     // Protipohyb rozhodující pro SL sweep: u obchodu, který neskončil na SL,
     // rozhoduje MAE během obchodu (po výstupu pozice neexistovala). U
@@ -780,7 +814,9 @@
     CONTEXT_V2_FIELDS,
     TEST_STATES,
     TICK_SIZES,
+    TICK_VALUES,
     ticksOf,
+    tickValueOf,
     normalizeRecords,
     numberOrNull,
     textOrNull,

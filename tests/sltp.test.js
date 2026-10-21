@@ -191,6 +191,10 @@ test('nejčastější SL v ticích: z obchodů se slTicks, remíza vypíše obě
 
 test('pohyb po výstupu na targetu: medián zapsaného pokračování, 0 je měření', () => {
   const res = S.computeSlTp(norm([trade({ postExitFavorableTicks: 0 }), trade({ postExitFavorableTicks: 4 }), trade({ postExitFavorableTicks: 10 }), trade({ postExitFavorableTicks: null }), stop()]));
-  assert.deepEqual(res.tpAfter, { n: 3, targets: 4, p50: 4 });
-  assert.deepEqual(S.computeSlTp([]).tpAfter, { n: 0, targets: 0, p50: null });
+  const pick = t => ({ n: t.n, targets: t.targets, p50: t.p50 });
+  assert.deepEqual(pick(res.tpAfter), { n: 3, targets: 4, p50: 4 });
+  assert.deepEqual(pick(S.computeSlTp([]).tpAfter), { n: 0, targets: 0, p50: null });
+  // Diagnóza: o 1 R a víc = pokračování ≥ SL obchodu (helper SL 12 t → jen 0 z 3).
+  assert.equal(res.tpAfter.oneR.n, 3);
+  assert.equal(res.tpAfter.oneR.records.length, 0);
 });

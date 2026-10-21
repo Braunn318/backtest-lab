@@ -1,3 +1,44 @@
+## 0.5.0 - 2026-10-21
+Zadání docs/ZADANI_LAB_PRESTAVBA.md (nahrazuje ZADANI_LAB_SIMULATOR_CILE.md). Lab dál jen čte,
+do MFE / MAE jen naměřené, žádné číslo bez N, prahy 10 / 30 se nesnižují.
+
+Navigace a výběr
+- Navigace: Diagnóza (otevře se po spuštění) · Co kdyby · Data · Pokročilé (sbalené, pamatuje se:
+  SL a TP, Hladiny, Kontext, Denní risk – beze změny). Obrazovka Souhrn zanikla; její karty dál nesou
+  obrazovky v Pokročilých.
+- Výběr nahoře na všech obrazovkách: deník · období · instrument · setup. Instrument je ve výchozím
+  stavu nejčastější v deníku (Phidias 1 → MES); „Všechny" je vědomá volba a pamatuje se.
+
+Diagnóza (app/diagnosis.js, ui-diagnosis.js)
+- Hlavička: obchodů, P/L $, poplatky $, win %, průměrná výhra / ztráta R, win % potřebné na nulu,
+  poplatek na obchod v R; P/L po týdnech.
+- Karta „Vstup, SL nebo cíl?" – čísla z LabSlTp (hranice 2 ticky = SlTp.ENTRY_NO_RUN_TICKS).
+- „Kde ztrácím" (5 karet) a „Co funguje" (3) podle dopadu = P/L skupiny − n × průměr P/L mimo skupinu;
+  každá karta s n, zbytkem, lištami $ / obchod a rozbalitelnými obchody. Zbytek pod „Zobrazit všechna
+  srovnání" (pod 10 obchodů šedě, 10–29 předběžně). Nevyplněno je vždy vlastní skupina a do top nejde.
+- Katalog 17 srovnání v jednom místě (COMPARISONS), u každého when = před vstupem / po obchodu / den.
+- Seznamy slov pro emoce a technickou chybu: Data → Nastavení diagnózy (views.json diagWords);
+  hledá se bez diakritiky a velikosti písmen v poznámce a v plánu dne.
+- Množina = sequenceBase jako Denní risk: legacy obchody vstupují do $, do R a ticků ne.
+
+Co kdyby (app/whatif.js, ui-whatif.js)
+- 12 předvoleb, čtyři bloky voleb: A pravidla dne (přes LabDaySim, $ limity převedené jednotkou 1 R),
+  B které obchody brát (jen pole známá před vstupem), C SL, D cíl (k × R, plánovaný, TG1 + runner).
+- Výsledek obchodu při jiném SL / cíli konzervativně (§3.4); nerozhodnuté mimo P/L, vedle nejhorší
+  případ (−1 R); nad 20 % nerozhodnutých nejvýš „předběžně". Navíc „rozdíl na stejných obchodech"
+  (bez nerozhodnutých na obou stranách) – „Drží to?" stojí na něm.
+- Tabulka Skutečnost | Varianta | 2 uložené varianty, equity v $, P/L po týdnech, co varianta
+  odřízla, drží to? (bez jednoho dne, 1. × 2. polovina), varování o přeladění u filtrů B,
+  Zkopírovat jako text.
+- LabDaySim: nové pravidlo afterTarget (konec po N targetech dne). Denní risk ho nenabízí.
+- normalize: hodnota ticku (TICK_VALUES), riskUSD, plán dne, poznámka, psychika před vstupem,
+  backToEntry (= touchedEntry deníku + výstup na vstupu nebo pod ním).
+
+Testy
+- tests/diagnosis, whatif, ui-prestavba; tests/control-numbers ověřuje kontrolní čísla §4 na reálném
+  exportu (LAB_FIXTURE nebo Claude files/phidias1-2026-10-21.json, jinak se přeskočí). 21. 10.: všech
+  10 kontrolních čísel sedí na ± 0,1 $. 240 testů.
+
 ## 0.4.0 - 2026-10-14
 Zadání docs/ZADANI_LAB_SOUHRN.md: 1) kontext v3 (docs/ZADANI_KONTEXT_V3.md část B), 2) nové
 rozložení – Souhrn a podrobnosti zvlášť. Lab dál jen čte, nic nezapisuje; prahy vzorku se nemění.

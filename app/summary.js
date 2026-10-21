@@ -25,13 +25,16 @@
   const has = v => v !== null && v !== undefined;
   const stop = s => s.replace(/[.\s]+$/, '') + '.';
 
-  // Navigace: Souhrn · Podrobnosti (sbalitelná, pamatuje se) · Data.
+  // Navigace (ZADANI_LAB_PRESTAVBA §1): Diagnóza · Co kdyby · Data · Pokročilé
+  // (sbalené, pamatuje se). Obrazovka Souhrn od 0.5 není – karty z tohoto modulu
+  // dál nesou nahoře obrazovky v Pokročilých.
   const NAV = [
-    { screen: 'summary' },
-    { group: 'details', label: 'Podrobnosti', screens: ['sltp', 'levels', 'context', 'risk'] },
-    { group: 'data', label: 'Data', screens: ['health'] }
+    { screen: 'diagnosis' },
+    { screen: 'whatif' },
+    { group: 'data', label: 'Data', screens: ['health'] },
+    { group: 'advanced', label: 'Pokročilé', screens: ['sltp', 'levels', 'context', 'risk'] }
   ];
-  const START_SCREEN = 'summary';
+  const START_SCREEN = 'diagnosis';
   // Kolik dimenzí kontextu ukáže řádek „největší rozdíly".
   const CONTEXT_ROWS = 3;
 

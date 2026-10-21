@@ -90,6 +90,26 @@
     });
   }
 
+  // Výběr nahoře (ZADANI_LAB_PRESTAVBA §1): instrument je ve výchozím stavu
+  // nejčastější v deníku (Phidias 1 míchá MES s FDXS a ES). „Všechny" je
+  // vědomá volba a pamatuje se zvlášť (ALL_INSTRUMENTS).
+  const ALL_INSTRUMENTS = '__all__';
+
+  function defaultInstrument(records) {
+    const counts = new Map();
+    for (const r of records) if (r.isTrade && r.instrument) counts.set(r.instrument, (counts.get(r.instrument) || 0) + 1);
+    let best = null;
+    for (const [instrument, n] of counts) if (!best || n > best.n || (n === best.n && instrument < best.instrument)) best = { instrument, n };
+    return best ? best.instrument : null;
+  }
+
+  // Filtry, které opravdu platí: uložené pohledy + výchozí instrument.
+  function filtersOf(records, views = {}) {
+    const chosen = views.instrument;
+    const instrument = chosen === ALL_INSTRUMENTS ? '' : (chosen || defaultInstrument(records) || '');
+    return { ...views, instrument };
+  }
+
   // Obchodní dny výkonového vzorku – jmenovatel tempa v prognóze.
   function tradingDays(perf) {
     return new Set(perf.map(r => r.date).filter(Boolean)).size;
@@ -613,6 +633,9 @@
     partition,
     includeOf,
     filterRecords,
+    ALL_INSTRUMENTS,
+    defaultInstrument,
+    filtersOf,
     tradingDays,
     dateRange,
     fillStats,

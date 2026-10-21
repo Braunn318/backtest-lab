@@ -117,9 +117,17 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
 - app/overview.js – analyses(ctx): JEDINÉ místo, kde se pro render spouští analýzy (memo na ctx) –
   Souhrn i obrazovky čtou tentýž objekt. Stavy analýz (✓ / ~ / –, *State), computeOverview → bloky
   „Co vyplnit" a „Kdy to bude". NIC NEPOČÍTÁ: bere výsledky analýz a jejich prahy.
-- app/summary.js – Souhrn (ZADANI_LAB_SOUHRN §2): karty výsledek, SL, TP, Hladiny, Denní risk,
-  kontext – největší rozdíly, data; NAV a START_SCREEN. Nic nepočítá, jen skládá z analyses.
-- app/ui.js (kostra) + ui-common/ui-summary/ui-health/ui-sltp/ui-levels/ui-context/ui-risk.js + index.html.
+- app/summary.js – karty SL, TP, Hladiny, Denní risk, kontext, data (nahoře obrazovek v Pokročilých);
+  NAV a START_SCREEN. Obrazovka Souhrn od 0.5 není. Nic nepočítá, jen skládá z analyses.
+- app/diagnosis.js – Diagnóza (ZADANI_LAB_PRESTAVBA §2): JEDINÝ katalog srovnání COMPARISONS
+  (when: before / after / day), dopad, top karty, hlavička, P/L po týdnech, „Vstup, SL nebo cíl?"
+  (čísla z LabSlTp), slova v poznámce (DEFAULT_WORDS, views.diagWords). Množina = sequenceBase.
+- app/whatif.js – Co kdyby (§3): předvolby, varianta A–D, tradeOutcome (§3.4, konzervativně),
+  pravidla dne přes LabDaySim, souhrn, „stejné obchody", drží to? (VA.leaveOneDayOut / timeSplit),
+  text do schránky. Tvar varianty čistí views.js (cleanWhatIfConfig – jeden tvar pro okno i views.json).
+- app/ui.js (kostra, výběr nahoře, H.filtersOf = výchozí instrument) + ui-common/ui-summary/ui-diagnosis/
+  ui-whatif/ui-health/ui-sltp/ui-levels/ui-context/ui-risk.js + index.html. Obrazovka může mít
+  onClick / onChange(e, api, ctx) pro vlastní ovládání (Co kdyby, nastavení diagnózy v Datech).
   ui-summary.js kreslí karty (data-card … <!--/card-->) – obrazovky v Podrobnostech dávají nahoru tutéž.
   Obrazovka může vrátit screen.scope(ctx) → { n, note } pro hlavičku „Počítá se".
   Obrazovky skládají sekce přes LabUI.sections(screen, [{ id, title, state, headline, body, missing }], views).
@@ -166,9 +174,24 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
   kladná = šum, neprojde LOO = nespolehlivá. Pod 20 dny nic z toho, jen popis.
 - Při záporné expectancy každé ubírající pravidlo vyjde kladně → sloupec „Náhodné vynechání“.
 
+## Přestavba 0.5 (docs/ZADANI_LAB_PRESTAVBA.md, 21. 10.)
+- Navigace: Diagnóza (start) · Co kdyby · Data · Pokročilé ▸ (SL a TP, Hladiny, Kontext, Denní risk –
+  beze změny, sbalené ve výchozím stavu, views.navAdvancedOpen). Souhrn zanikl.
+- Výběr nahoře: deník · období · instrument (výchozí nejčastější, „Všechny" = H.ALL_INSTRUMENTS) · setup.
+- Diagnóza a Co kdyby počítají nad sequenceBase (legacy do $ ano, do R a ticků ne), pořadí v dni nad
+  výběrem. Dopad = P/L skupiny − n × průměr mimo skupinu. Nevyplněno = vlastní skupina, do top ne.
+  Věta smí říct fakt simulace („Kdyby…, P/L by bylo X místo Y"), ne doporučení.
+- Co kdyby: nerozhodnuté mimo P/L + nejhorší případ; „rozdíl na stejných obchodech" (bez nerozhodnutých
+  na obou stranách) – na něm stojí „Drží to?". Bez toho by vypadnutí nepřepočitatelných obchodů
+  vypadalo jako účinek varianty (1:1 na Phidias 1: +121 $ proti skutečnosti, ale −92 $ na stejných).
+- Kontrolní čísla §4 (tests/control-numbers.test.js) sedí 21. 10. všech 10. Fixtura z reálného exportu
+  se do repa nekopíruje: LAB_FIXTURE=<cesta k exportu> npm test, nebo Claude files/phidias1-2026-10-21.json.
+- Otevřené (čeká na uživatele): postExitAdverseFirst ukládá deník jako false i bez odpovědi (výchozí
+  „Ne" ve formuláři) → pravidlo 3 „obojí → false ? target" může být optimistické; touchedEntry je
+  dopočet deníku jen u výstupu v zisku – Lab ho doplňuje faktem (výstup na vstupu / pod ním = true).
+
 ## Přehlednost (ZADANI_PREHLEDNOST.md, od 0.4 ZADANI_LAB_SOUHRN.md)
-- Navigace: Souhrn · Podrobnosti ▸ (SL a TP, Hladiny, Kontext, Denní risk – sbalitelné, pamatuje se)
-  · Data (Zdraví dat a co vyplnit). „Co teď vím" od 0.4 NENÍ – její věty jsou karty Souhrnu.
+- Navigace do 0.4: Souhrn · Podrobnosti ▸ · Data. Od 0.5 viz Přestavba výše.
 - Souhrn se otevírá po spuštění a musí se vejít na 1920 × 1080 bez scrollu: výsledek + equity v R,
   čtyři otázky (SL, TP, Hladiny, Denní risk), kontext – největší rozdíly, řádek dat. Žádné tabulky,
   žádné doporučení (test hlídá „doporuč", „nastav si", „optimální", „vyhýbej" na všech obrazovkách).
@@ -214,6 +237,9 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
   a nové rozložení. Commitnuto na test spolu s 0.3.3 a vydáno 14. 10. jako pre-release v0.4.0 (test)
   s instalátorem – čeká na ověření uživatelem, pak merge do main. 209 testů. Stav dat 14. 10.: Phidias 1 – 44 dotčených hladin (✓),
   SL / TP předběžně, kontext 3 dimenze předběžně; úplnost kontextu 8 % (známka / trend 30m).
+- 0.5.0 (21. 10., docs/ZADANI_LAB_PRESTAVBA.md): Diagnóza + Co kdyby, nová navigace a výběr nahoře.
+  Commitnuto na test a vydáno 21. 10. jako pre-release v0.5.0 (test) s instalátorem – čeká na ověření
+  uživatelem a na rozhodnutí o postExitAdverseFirst / touchedEntry (viz Přestavba), pak merge do main. 240 testů.
 - Vydání na test: skill `.claude/skills/release_test` (gitignored, lokální).
 - Další v řadě: fáze 3 krok 4 – dva deníky vedle sebe (§8.1, nikdy nesčítat). NEZAČÍNAT,
   čeká na rozhodnutí uživatele, až bude víc dnů.

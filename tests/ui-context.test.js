@@ -13,6 +13,7 @@ globalThis.window = globalThis;
 require('../app/labels.js');
 require('../app/context.js');
 require('../app/summary.js');
+require('../app/diagnosis.js');
 require('../app/ui-common.js');
 require('../app/ui-summary.js');
 require('../app/ui-health.js');
@@ -140,7 +141,7 @@ test('B4/4: starší export bez nových polí vykreslí všechny obrazovky bez c
   const data = N.normalizeExport({ journalId: 'old', trades: raws });
   const options = H.includeOf({});
   const ctx = { records: data.records, perf: H.partition(data.records, options).perf, health: H.computeHealth(data.records, options), views: {}, options };
-  for (const screen of ['summary', 'health', 'sltp', 'levels', 'context', 'risk']) {
+  for (const screen of ['health', 'sltp', 'levels', 'context', 'risk']) {
     const html = window.LabScreens[screen].render(ctx);
     assert.ok(html.length > 200, screen);
     assert.equal(FORBIDDEN.test(html), false, screen + ' obsahuje doporučení');

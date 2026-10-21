@@ -18,6 +18,9 @@
   const SL_RESERVE_TICKS = 2;          // rezerva, pod kterou je SL „těsně"
   const NEVER_RAN_SHARE = 0.5;         // MFE ≤ polovina SL ⇒ obchod se nerozjel
   const TP_CLOSE_MIN_TICKS = 4;        // pokračování po výstupu, od kterého byl cíl blízko
+  // Diagnóza „Vstup, SL nebo cíl?": ztráta, která nešla do zisku víc než tolik
+  // ticků, se nikdy nerozjela – problém je vstup. Jediná konstanta té karty.
+  const ENTRY_NO_RUN_TICKS = 2;
   const SWEEP_SL = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24];
   const GRID_SL = [4, 6, 8, 10, 12, 14, 16, 18, 20];
   const GRID_TP_R = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5];
@@ -144,6 +147,7 @@
     return {
       n: values.length,
       winners: winners.length,
+      records: winners.filter(r => has(r.maeMeasured)),
       derived: winners.filter(r => r.mae.tier === 'derived').length,
       missing: winners.filter(r => r.mae.tier == null).length,
       p50: percentile(values, 0.5),
@@ -166,6 +170,11 @@
     return {
       n: values.length,
       stopped: stopped.length,
+      // Nerozjelo se (MFE ≤ ENTRY_NO_RUN_TICKS), z toho vůbec (MFE 0); 1 R ve směru.
+      noRun: measured.filter(r => r.mfeMeasured <= ENTRY_NO_RUN_TICKS),
+      zero: measured.filter(r => r.mfeMeasured === 0),
+      reachOneR: withSl.filter(r => r.mfeMeasured >= r.slTicks),
+      measured,
       derived: stopped.filter(r => r.mfe.tier === 'derived').length,
       missing: stopped.filter(r => r.mfe.tier == null).length,
       p50: percentile(values, 0.5),
@@ -305,8 +314,19 @@
   // Stejná hodnota jako sloupec „Na stole" u obchodu (tradeRow.leftOnTable).
   function tpAfter(perf) {
     const targets = perf.filter(r => r.result === 'target');
-    const values = targets.map(r => r.postExitFavorableTicks).filter(has);
-    return { n: values.length, targets: targets.length, p50: median(values) };
+    const observed = targets.filter(r => has(r.postExitFavorableTicks));
+    const values = observed.map(r => r.postExitFavorableTicks);
+    // Pokračovalo po targetu ještě o 1 R a víc (pohyb po výstupu ≥ SL obchodu).
+    const withSl = observed.filter(r => r.slTicks > 0);
+    return {
+      n: values.length, targets: targets.length, p50: median(values), observed,
+      oneR: { n: withSl.length, records: withSl.filter(r => r.postExitFavorableTicks >= r.slTicks) }
+    };
+  }
+
+  // Medián SL v ticích (slTicks obchodu).
+  function slMedian(perf) {
+    return median(perf.map(r => r.slTicks).filter(has));
   }
 
   // ------------------------------------------------------------- celek
@@ -329,7 +349,7 @@
   }
 
   return {
-    SL_RESERVE_TICKS, SWEEP_SL, GRID_SL, GRID_TP_R, SAMPLE_WARN, SAMPLE_GREY, SWEEP_SAMPLE_WARN,
-    percentile, median, tradeRow, slMode, tpAfter, maeWinners, mfeStopped, slSweep, gridOutcome, gridResult, grid, computeSlTp
+    SL_RESERVE_TICKS, ENTRY_NO_RUN_TICKS, SWEEP_SL, GRID_SL, GRID_TP_R, SAMPLE_WARN, SAMPLE_GREY, SWEEP_SAMPLE_WARN,
+    percentile, median, tradeRow, slMode, slMedian, tpAfter, maeWinners, mfeStopped, slSweep, gridOutcome, gridResult, grid, computeSlTp
   };
 }));

@@ -108,7 +108,7 @@
   ];
   const REASON_TEXT = {
     dailyLoss: 'ztrátový limit', consecutiveSL: 'SL za sebou', dailySL: 'SL za den', maxTrades: 'max obchodů',
-    dailyTarget: 'denní cíl', giveBack: 'vrácení zisku', hardDailyLoss: 'tvrdý denní limit', trailingDrawdown: 'trailing drawdown'
+    dailyTarget: 'denní cíl', giveBack: 'vrácení zisku', afterTarget: 'po targetu', hardDailyLoss: 'tvrdý denní limit', trailingDrawdown: 'trailing drawdown'
   };
 
   const r2 = v => Math.round(v * 100) / 100;

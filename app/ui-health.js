@@ -226,9 +226,41 @@
     const ov = window.LabOverview.computeOverview(ctx);
     // Nahoře tatáž karta jako v Souhrnu (úplnost, nejužší hrdlo), pak co vyplnit a kdy to bude.
     const top = window.LabSummaryUI.dataCard(window.LabSummary.dataOf(h, ov)) + fillBlock(ov.fill) + etaBlock(ov.eta);
-    return top + sections('health', [heroCheck11(c11), unknownKeysCard(h), sectionA(h), skipLiveCard(h), sectionB(h), contextCoverageCard(h), sectionC(h), sectionD(h)], ctx.views);
+    return top + sections('health', [heroCheck11(c11), unknownKeysCard(h), sectionA(h), skipLiveCard(h), sectionB(h), contextCoverageCard(h), sectionC(h), sectionD(h)], ctx.views)
+      + diagnosisSettings(ctx.views);
+  }
+
+  // ------------------------------------------------------------- nastavení diagnózy
+
+  // Seznamy slov pro srovnání „Emoce / Technická chyba v poznámce" (Diagnóza).
+  // Hledá se bez diakritiky a velikosti písmen v poznámce obchodu a v plánu dne.
+  // Ukládá se do views.json; prázdné pole = výchozí seznam.
+  function diagnosisSettings(views) {
+    const DG = window.LabDiagnosis;
+    const words = DG.wordsOf(views);
+    const saved = views.diagWords || {};
+    const area = (key, label) => `<label class="dg-words"><span><b>${esc(label)}</b>${saved[key] ? '' : ' <span class="muted">(výchozí)</span>'}</span>
+      <textarea data-diag-words="${key}" rows="3" spellcheck="false">${esc(words[key].join(', '))}</textarea>
+      <span class="hint">Výchozí: ${esc(DG.DEFAULT_WORDS[key].join(', '))}</span></label>`;
+    return `<div class="card" id="diag-settings">
+      <h2>Nastavení diagnózy</h2>
+      <p class="section-sub">Slova oddělená čárkou. Hledají se bez diakritiky a velikosti písmen v poznámce obchodu a v plánu dne (setup, psychika, poznámka); stačí začátek slova („unaven“ najde „unavený“). Prázdné pole = výchozí seznam.</p>
+      <div class="two-col even">${area('emotion', 'Emoce v poznámce')}${area('technical', 'Technická chyba v poznámce')}</div>
+    </div>`;
+  }
+
+  // Úprava seznamu slov – uloží se do views.json (prázdné = výchozí).
+  function onChange(e, api) {
+    const key = e.target.dataset && e.target.dataset.diagWords;
+    if (!key) return false;
+    const list = e.target.value.split(/[,;\n]/).map(w => w.trim()).filter(Boolean);
+    const next = { ...(api.views.diagWords || {}) };
+    if (list.length) next[key] = list; else delete next[key];
+    api.setView('diagWords', Object.keys(next).length ? next : undefined);
+    api.render();
+    return true;
   }
 
   window.LabScreens = window.LabScreens || {};
-  window.LabScreens.health = { title: 'Zdraví dat a co vyplnit', question: 'Sbírám použitelná data a co doplnit?', render };
+  window.LabScreens.health = { title: 'Zdraví dat a co vyplnit', question: 'Sbírám použitelná data a co doplnit?', render, onChange };
 })();

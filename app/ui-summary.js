@@ -112,7 +112,8 @@
     </div>`;
   }
 
-  window.LabSummaryUI = { questionCard, resultCard, contextCard, dataCard };
+  // Obrazovka Souhrn od 0.5 v navigaci není (ZADANI_LAB_PRESTAVBA §1) – render
+  // zůstává jen jako složení karet; karty dál nesou obrazovky v Pokročilých.
+  window.LabSummaryUI = { questionCard, resultCard, contextCard, dataCard, render };
   window.LabScreens = window.LabScreens || {};
-  window.LabScreens.summary = { title: 'Souhrn', question: 'Co se z dat ví a jak moc', render };
 })();

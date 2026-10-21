@@ -1,7 +1,7 @@
 {
   "name": "backtest-lab",
-  "version": "0.4.0",
-  "description": "Backtest Lab 0.4.0 – souhrn, SL a TP, hladiny, kontext, denní risk, zdraví dat a co vyplnit z Futures Journal PRO (read-only).",
+  "version": "0.5.0",
+  "description": "Backtest Lab 0.5.0 – Diagnóza (kde ztrácím a kde vydělávám), Co kdyby (pravidla dne, cíl, SL), data a pokročilé analýzy z Futures Journal PRO (read-only).",
   "main": "main.js",
   "private": true,
   "author": "Jája S",

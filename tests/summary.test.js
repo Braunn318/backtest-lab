@@ -13,6 +13,7 @@ const { trade, stop, normAll, many } = require('./helpers/records.js');
 
 globalThis.window = globalThis;
 require('../app/labels.js');
+require('../app/diagnosis.js');
 require('../app/ui-common.js');
 require('../app/ui-summary.js');
 require('../app/ui-health.js');
@@ -66,7 +67,7 @@ test('1: každé číslo v Souhrnu je identické s číslem na obrazovce v Podro
   assert.equal(s.cards.risk.big, an.seq.runs.z);
 
   // Karta na obrazovce v Podrobnostech je tatáž (stejné HTML = stejná čísla i věta).
-  const summary = window.LabScreens.summary.render(ctx);
+  const summary = window.LabSummaryUI.render(ctx);
   const screens = { sl: 'sltp', tp: 'sltp', levels: 'levels', risk: 'risk' };
   for (const [key, screen] of Object.entries(screens)) {
     assert.equal(cardHtml(window.LabScreens[screen].render(ctx), key), cardHtml(summary, key), key);
@@ -110,7 +111,7 @@ test('2: karta pod prahem začíná „Předběžně", bez vstupu ukáže „–
   }
   const empty = ctxOf([]);
   const s = SM.computeSummary(empty);
-  const html = window.LabScreens.summary.render(empty);
+  const html = window.LabSummaryUI.render(empty);
   for (const key of ['sl', 'tp', 'levels', 'risk']) {
     const card = cardHtml(html, key);
     assert.equal(s.cards[key].state, 'na', key);
@@ -122,7 +123,7 @@ test('2: karta pod prahem začíná „Předběžně", bez vstupu ukáže „–
   assert.match(cardHtml(html, 'context'), /Kontext zatím nemá vzorek — chybí /);
   // Rozložení se nehýbe: všechny karty jsou na svém místě i bez dat, žádná tabulka.
   for (const key of ['result', 'sl', 'tp', 'levels', 'risk', 'context', 'data']) cardHtml(html, key);
-  for (const ctx of [empty, ctxOf(full())]) assert.doesNotMatch(window.LabScreens.summary.render(ctx), /<table/);
+  for (const ctx of [empty, ctxOf(full())]) assert.doesNotMatch(window.LabSummaryUI.render(ctx), /<table/);
 });
 
 // ---------------------------------------------------------------- 3. největší rozdíly
@@ -171,7 +172,8 @@ test('4: žádný text v Souhrnu ani v Podrobnostech neobsahuje doporučení', (
     const texts = JSON.stringify(s);
     assert.equal(FORBIDDEN.test(texts), false, texts.match(FORBIDDEN));
     for (const screen of ['summary', 'sltp', 'levels', 'context', 'risk', 'health']) {
-      const html = window.LabScreens[screen].render(ctx);
+      // Souhrn od 0.5 není v navigaci – jeho karty nesou obrazovky v Pokročilých.
+      const html = screen === 'summary' ? window.LabSummaryUI.render(ctx) : window.LabScreens[screen].render(ctx);
       assert.equal(FORBIDDEN.test(html), false, `${screen}: ${html.match(FORBIDDEN)}`);
       assert.doesNotMatch(html, /undefined|NaN|\[object/, screen);
     }
@@ -180,29 +182,23 @@ test('4: žádný text v Souhrnu ani v Podrobnostech neobsahuje doporučení', (
 
 // ---------------------------------------------------------------- 5. navigace se pamatuje
 
-test('5: sbalení skupiny Podrobnosti se pamatuje (views.json) a přežije změnu deníku', () => {
-  const saved = V.sanitizeViews({ journalId: 'a', instrument: 'ES', navDetailsClosed: true, levelBin: 2 });
-  assert.equal(saved.navDetailsClosed, true);
+test('5: rozbalení skupiny Pokročilé se pamatuje (views.json) a přežije změnu deníku', () => {
+  const saved = V.sanitizeViews({ journalId: 'a', instrument: 'ES', navAdvancedOpen: true, levelBin: 2 });
+  assert.equal(saved.navAdvancedOpen, true);
   assert.equal(saved.levelBin, 2);
   const changed = V.sanitizeViews({ ...V.forJournalChange(saved), journalId: 'b' });
-  assert.equal(changed.navDetailsClosed, true);
+  assert.equal(changed.navAdvancedOpen, true);
   assert.equal(changed.levelBin, 2);
   assert.equal(changed.instrument, undefined);
-  // Výchozí stav = rozbaleno (nic se neukládá); sloučení jen po 1 / 2 / 4 t.
-  assert.equal(V.sanitizeViews({}).navDetailsClosed, undefined);
+  // Výchozí stav = sbaleno (nic se neukládá); sloučení jen po 1 / 2 / 4 t.
+  assert.equal(V.sanitizeViews({}).navAdvancedOpen, undefined);
   assert.equal(V.sanitizeViews({ levelBin: 3 }).levelBin, undefined);
   assert.equal(V.sanitizeViews({ levelTolerance: 2 }).levelTolerance, undefined, 'tolerance hladin v3 zmizela');
 });
 
-test('navigace: Souhrn, Podrobnosti (SL a TP, Hladiny, Kontext, Denní risk), Data; „Co teď vím" zaniká', () => {
-  assert.deepEqual(SM.NAV, [
-    { screen: 'summary' },
-    { group: 'details', label: 'Podrobnosti', screens: ['sltp', 'levels', 'context', 'risk'] },
-    { group: 'data', label: 'Data', screens: ['health'] }
-  ]);
-  assert.equal(SM.START_SCREEN, 'summary');
+test('navigace 0.4 → 0.5: obrazovky v Pokročilých beze změny, „Co teď vím" i Souhrn zanikly (nová navigace: ui-prestavba.test.js)', () => {
   assert.equal(window.LabScreens.overview, undefined);
-  assert.equal(window.LabScreens.summary.title, 'Souhrn');
+  assert.equal(window.LabScreens.summary, undefined);
   assert.equal(window.LabScreens.levels.title, 'Hladiny');
   assert.equal(window.LabScreens.health.title, 'Zdraví dat a co vyplnit');
   // Obrazovka Data začíná bloky „Co vyplnit" a „Kdy to bude".

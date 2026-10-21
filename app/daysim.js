@@ -37,7 +37,8 @@
   //   dailyTarget    R    konec, když denní P/L ≥ +X
   //   giveBack       R    konec, když denní P/L klesne o X pod své denní MAXIMUM
   //                       (maximum začíná na 0 – start dne)
-  const RULE_KEYS = ['dailyLoss', 'consecutiveSL', 'dailySL', 'maxTrades', 'dailyTarget', 'giveBack'];
+  //   afterTarget    N    konec po N targetech za den (Co kdyby: „konec po targetu")
+  const RULE_KEYS = ['dailyLoss', 'consecutiveSL', 'dailySL', 'maxTrades', 'dailyTarget', 'giveBack', 'afterTarget'];
 
   // Tvrdé limity challenge (§8.3). Dnes je Phidias nemá → prázdné = nepoužívá se.
   // Kdyby se objevily, doplní se jen hodnota:
@@ -87,13 +88,14 @@
     if (has(rules.maxTrades) && s.count >= rules.maxTrades) return 'maxTrades';
     if (has(rules.dailyTarget) && s.cum >= rules.dailyTarget) return 'dailyTarget';
     if (has(rules.giveBack) && s.peak - s.cum >= rules.giveBack) return 'giveBack';
+    if (has(rules.afterTarget) && s.targetCount >= rules.afterTarget) return 'afterTarget';
     return null;
   }
 
   // trades: [{ record, r }] jednoho dne v pořadí. account: sdílený stav přes
   // dny kvůli trailingDrawdown ({ equity, peak, blown }).
   function simulateDay(trades, rules, account = { equity: 0, peak: 0, blown: false }) {
-    const s = { cum: 0, peak: 0, slStreak: 0, slCount: 0, count: 0 };
+    const s = { cum: 0, peak: 0, slStreak: 0, slCount: 0, count: 0, targetCount: 0 };
     const out = trades.map(t => ({ ...t, taken: false }));
     let reason = null;
     for (const t of out) {
@@ -103,6 +105,7 @@
       s.cum += t.r;
       s.peak = Math.max(s.peak, s.cum);
       if (t.record.result === 'stoploss') { s.slStreak++; s.slCount++; } else s.slStreak = 0;
+      if (t.record.result === 'target') s.targetCount++;
       account.equity += t.r;
       account.peak = Math.max(account.peak, account.equity);
       if (has(rules.trailingDrawdown) && account.peak - account.equity >= rules.trailingDrawdown) account.blown = true;

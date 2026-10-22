@@ -86,8 +86,10 @@
       ${radio('sl.mode', 'wider', sl.mode, 'o X ticků širší', ticks('wider'))}
       ${radio('sl.mode', 'narrower', sl.mode, 'o X ticků užší', ticks('narrower'))}
       ${radio('sl.mode', 'fixed', sl.mode, 'pevně X ticků', ticks('fixed'))}
-    </div>`;
-    const head = sl.mode === 'actual' ? 'jak jsem ho měl' : W.describeConfig({ sl });
+    </div>
+    <div class="wi-radio" style="margin-top:12px"><b>BE celé pozice:</b> po +${numberInput('be.afterR', cfg.be ? cfg.be.afterR : null, 'vypnuto', '0.25')} R posunout SL všech kontraktů na vstup</div>
+    <p class="muted" style="font-size:12px">Prázdné = vypnuto. Platí s jakýmkoli cílem; u rozdělení před TG1 (po TG1 má runner BE vždy). Konzervativně: když cena během obchodu šla i pod vstup, nevíme, jestli před nebo po +X R – počítá se BE.</p>`;
+    const head = [sl.mode === 'actual' ? 'jak jsem ho měl' : W.describeConfig({ sl }), cfg.be ? `BE po +${num(cfg.be.afterR)} R` : ''].filter(Boolean).join(' · ');
     return block('sl', 'C) SL', head, body, views);
   }
 

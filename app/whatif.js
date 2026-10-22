@@ -12,8 +12,11 @@
 // neznáme, vždy horší výsledek:
 //   1. mae ≥ S → SL
 //   2. jinak mfe ≥ T → target
-//   3. jinak pohyb po výstupu: F ≥ T a A < S → target · A ≥ S a F < T → SL ·
-//      obojí → postExitAdverseFirst === false ? target : SL · jinak nerozhodnuto
+//   3. jinak pohyb po výstupu: F ≥ T a A < S → target · A ≥ S → SL (i když došlo
+//      i na cíl) · jinak nerozhodnuto
+// postExitAdverseFirst se NEPOUŽÍVÁ: deník ukládá false („Ne" je ve formuláři
+// předvybrané) i bez odpovědi. Rozhodnutí uživatele 21. 10.: když cena došla na
+// SL, počítá se SL (u runneru: když došla zpět na vstup, počítá se BE).
 // Varianta s nezměněným SL i cílem = přesně skutečnost (pnlRaw). Nerozhodnuté se
 // do P/L nepočítají; nejhorší případ je bere jako −1 R.
 //
@@ -61,6 +64,7 @@
     { key: 'rr2', label: 'Cíl 2:1', apply: set('target', { mode: 'r', k: 2 }) },
     { key: 'wider2', label: 'SL o 2 ticky širší', apply: set('sl', { mode: 'wider', ticks: 2 }) },
     { key: 'runner', label: 'TG1 1R + runner 2R', apply: set('target', { mode: 'split', k1: 1, k2: 2 }) },
+    { key: 'be1', label: 'BE po 1R (celá pozice)', apply: set('be', { afterR: 1 }) },
     { key: 'noM2Trend', label: 'Vyřadit M2 v trendu', apply: exclude('setup', ['M2_TREND'], true) },
     { key: 'onlyAbs', label: 'Jen s ABS', apply: exclude('orderFlow', ['OTHER', 'NONE', DG.UNKNOWN]) },
     { key: 'onlyA', label: 'Jen známka A', apply: exclude('grade', ['B', 'C', DG.UNKNOWN]) }
@@ -73,26 +77,48 @@
 
   // ------------------------------------------------------------- jeden obchod
 
-  // Pravidla 1–3. x = { mae, mfe, F, A, adverseFirst }.
+  // Pravidla 1–3. x = { mae, mfe, F, A }.
   function bracket(x, S, T) {
     if (!has(x.mae) || !has(x.mfe)) return 'undecided';
     if (x.mae >= S) return 'stop';
     if (x.mfe >= T) return 'target';
     const fHit = has(x.F) && x.F >= T;
     const aHit = has(x.A) && x.A >= S;
-    if (aHit) return fHit && x.adverseFirst === false ? 'target' : 'stop';
+    if (aHit) return 'stop';
     if (fHit && has(x.A)) return 'target';
     return 'undecided';
   }
 
-  // Runner (jen po TG1): F ≥ k2·S a zpět na vstup ne → target k2 · F ≥ k2·S a zpět
-  // ano → BE (ledaže protipohyb nepřišel dřív → target k2) · F < k2·S a zpět ano
-  // → BE · jinak nerozhodnuto. Po TG1 má runner SL na vstupu, takže „zpět na vstup"
-  // bez známého F je nejhůř BE.
+  // Runner (jen po TG1): zpět na vstup ano → BE (SL runneru na vstupu, cena tam
+  // došla) · zpět ne a F ≥ k2·S → target k2 · jinak nerozhodnuto.
   function runnerOutcome(x, S, k2) {
     const reach = has(x.F) && x.F >= k2 * S;
-    if (x.backToEntry === true) return reach && x.adverseFirst === false ? 'target' : 'be';
+    if (x.backToEntry === true) return 'be';
     if (x.backToEntry === false) return reach ? 'target' : 'undecided';
+    return 'undecided';
+  }
+
+  // BE celé pozice (cíl T, SL S, posun na vstup po B ticcích ve směru, B < T).
+  // Konzervativně – kdy cena šla proti, nevíme:
+  //  - mae ≥ S → SL
+  //  - BE zapnuté během obchodu (mfe ≥ B): cena byla během obchodu i pod vstupem
+  //    (mae > 0) → BE (mohlo to být až po B); jinak mfe ≥ T → target; jinak po
+  //    výstupu zpět na vstup → BE, nezpět a F ≥ T → target, jinak nerozhodnuto
+  //  - BE během obchodu nezapnuté: A ≥ S → SL; F ≥ B a zpět na vstup → BE;
+  //    F ≥ T, zpět ne a A < S → target; jinak nerozhodnuto
+  function beOutcome(x, S, T, B) {
+    if (!has(x.mae) || !has(x.mfe)) return 'undecided';
+    if (x.mae >= S) return 'stop';
+    const fT = has(x.F) && x.F >= T;
+    if (x.mfe >= B) {
+      if (x.mae > 0) return 'be';
+      if (x.mfe >= T) return 'target';
+      if (x.backToEntry === true) return 'be';
+      return x.backToEntry === false && fT ? 'target' : 'undecided';
+    }
+    if (has(x.A) && x.A >= S) return 'stop';
+    if (has(x.F) && x.F >= B && x.backToEntry === true) return 'be';
+    if (fT && x.backToEntry === false && has(x.A)) return 'target';
     return 'undecided';
   }
 
@@ -112,7 +138,8 @@
     planned: 'bez plánovaného cíle s cenou',
     target: 'stopnutý obchod bez plánovaného cíle',
     'post-exit': 'pohyb po výstupu nerozhodne',
-    runner: 'runner: pohyb po výstupu nerozhodne'
+    runner: 'runner: pohyb po výstupu nerozhodne',
+    be: 'BE: pohyb po výstupu nerozhodne'
   };
 
   // Výsledek obchodu ve variantě. kind: actual · target · stop · be (runner na BE) ·
@@ -121,7 +148,8 @@
     const cfg = cleanConfig(cfgIn);
     const slChanged = cfg.sl.mode !== 'actual';
     const tgChanged = cfg.target.mode !== 'actual';
-    if (!slChanged && !tgChanged) {
+    const beAfter = cfg.be ? cfg.be.afterR : null;
+    if (!slChanged && !tgChanged && beAfter == null) {
       return { kind: 'actual', pnl: r.pnlRaw, worstPnl: r.pnlRaw, r: r.rSigned, result: r.result, S: r.slTicks };
     }
     const c = r.contracts, tv = r.tickValue, comm = r.commission || 0;
@@ -133,14 +161,23 @@
     if (S == null) return und('sl');
     if (!priced) return und('tick');
     if (!has(r.maeMeasured) || !has(r.mfeMeasured)) return und('measured');
-    const x = { mae: r.maeMeasured, mfe: r.mfeMeasured, F: r.maxFavorableMeasured, A: r.maxAdverseMeasured, adverseFirst: r.postExitAdverseFirst, backToEntry: r.backToEntry };
+    const x = { mae: r.maeMeasured, mfe: r.mfeMeasured, F: r.maxFavorableMeasured, A: r.maxAdverseMeasured, backToEntry: r.backToEntry };
     const stop = () => ({ kind: 'stop', pnl: money(-S), worstPnl: money(-S), r: -1, result: 'stoploss', ticks: -S, S });
     const target = T => ({ kind: 'target', pnl: money(T), worstPnl: money(T), r: T / S, result: 'target', ticks: T, S });
+    const be = () => ({ kind: 'be', pnl: money(0), worstPnl: money(0), r: 0, result: 'breakeven', ticks: 0, S });
+    // Bez BE pravidla 1–3; s BE (posun dřív než cíl) beOutcome.
+    const outcomeOf = T => (beAfter != null && beAfter * S < T ? beOutcome(x, S, T, beAfter * S) : bracket(x, S, T));
     const decide = (T, reason) => {
-      const o = bracket(x, S, T);
-      return o === 'stop' ? stop() : o === 'target' ? target(T) : und(reason);
+      const o = outcomeOf(T);
+      return o === 'stop' ? stop() : o === 'target' ? target(T) : o === 'be' ? be() : und(beAfter != null ? 'be' : reason);
     };
     const mode = cfg.target.mode;
+    if (mode === 'actual' && beAfter != null) {
+      // Cíl jak jsem ho měl + BE: plánovaný cíl, u targetu výstup na cíli.
+      const T = has(r.plannedTargetTicks) ? r.plannedTargetTicks : r.result === 'target' && r.exitTicks > 0 ? r.exitTicks : null;
+      if (x.mae >= S) return stop();
+      return T == null ? und('target') : decide(T, 'post-exit');
+    }
     if (mode === 'actual') {
       // Jen jiný SL: obchod, kterého se nový SL nedotkl a který neskončil na SL,
       // dopadne přesně jako ve skutečnosti.
@@ -156,8 +193,9 @@
     // Rozdělení: 1. kontrakt k1 × R, 2. kontrakt k2 × R, po TG1 SL 2. kontraktu na BE.
     // Lichý počet kontraktů: na TG1 jde větší polovina; 1 kontrakt = jen TG1.
     const T1 = cfg.target.k1 * S;
-    const first = bracket(x, S, T1);
+    const first = outcomeOf(T1);
     if (first === 'stop') return stop();
+    if (first === 'be') return be();
     if (first === 'undecided') return und('post-exit');
     const c1 = Math.ceil(c / 2), c2 = c - c1;
     if (!c2) return target(T1);
@@ -311,7 +349,7 @@
       config: cfg,
       unit, actual, same, variant, worst, holds, state, filtersOn,
       rulesActive: active,
-      changed: cfg.sl.mode !== 'actual' || cfg.target.mode !== 'actual',
+      changed: cfg.sl.mode !== 'actual' || cfg.target.mode !== 'actual' || !!cfg.be,
       trades: all.length,
       days: dates.length,
       legacy: all.filter(r => r.isLegacy).length,
@@ -358,6 +396,7 @@
     if (sl.mode === 'wider') parts.push(`SL o ${num(sl.ticks)} t širší`);
     if (sl.mode === 'narrower') parts.push(`SL o ${num(sl.ticks)} t užší`);
     if (sl.mode === 'fixed') parts.push(`SL pevně ${num(sl.ticks)} t`);
+    if (cfg.be) parts.push(`SL celé pozice na BE po +${num(cfg.be.afterR)} R`);
     const t = cfg.target;
     if (t.mode === 'r') parts.push(`cíl ${num(t.k)}:1`);
     if (t.mode === 'planned') parts.push('cíl na plánované hladině');
@@ -385,7 +424,7 @@
 
   return {
     UNDECIDED_WARN, FILTER_FIELDS, PRESETS, UNDECIDED_REASON,
-    cleanConfig, defaultConfig, applyPreset, bracket, runnerOutcome, slTicksOf, tradeOutcome,
+    cleanConfig, defaultConfig, applyPreset, bracket, runnerOutcome, beOutcome, slTicksOf, tradeOutcome,
     summarize, rulesInR, holdsOf, computeWhatIf, describeConfig, textSummary
   };
 }));

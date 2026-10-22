@@ -246,6 +246,8 @@
       body = `<div class="error">Obrazovku nejde vykreslit: ${esc(err && err.message)}</div>`;
     }
     content.innerHTML = errorBox + headerStrip(filtered, health.sample, scope) + body;
+    // Nabídka aktualizace až po prvním vykreslení obrazovky.
+    if (window.LabUpdatesUI) window.LabUpdatesUI.ready();
   }
 
   // ------------------------------------------------------------- události
@@ -339,6 +341,7 @@
   async function init() {
     bind();
     await loadState();
+    if (window.LabUpdatesUI) window.LabUpdatesUI.init({ get: () => state.views, set: setView });
     // Po spuštění se vždy otevře Diagnóza.
     state.views.screen = SM.START_SCREEN;
     await reloadAll();

@@ -25,7 +25,9 @@ test('pravidlo 3: rozhoduje pohyb po výstupu, jinak nerozhodnuto', () => {
   const base = { mae: 4, mfe: 8 };
   assert.equal(W.bracket({ ...base, F: 25, A: 6 }, 10, 20), 'target', 'F ≥ T a A < S');
   assert.equal(W.bracket({ ...base, F: 12, A: 14 }, 10, 20), 'stop', 'A ≥ S a F < T');
-  assert.equal(W.bracket({ ...base, F: 25, A: 14, adverseFirst: true }, 10, 20), 'stop', 'obojí, protipohyb dřív');
+  assert.equal(W.bracket({ ...base, F: 25, A: 14, adverseFirst: true }, 10, 20), 'stop', 'obojí → SL');
+  // „Protipohyb přišel dřív? Ne" deník ukládá i bez odpovědi – nerozhoduje (21. 10.).
+  assert.equal(W.bracket({ ...base, F: 25, A: 14, adverseFirst: false }, 10, 20), 'stop', 'obojí → SL i s „Ne"');
   assert.equal(W.bracket({ ...base, F: 12, A: 6 }, 10, 20), 'undecided', 'ani jedno');
   assert.equal(W.bracket({ ...base, F: 25, A: null }, 10, 20), 'undecided', 'bez protipohybu nejde říct, že SL nepadl');
   assert.equal(W.bracket({ ...base, F: null, A: 14 }, 10, 20), 'stop', 'protipohyb došel na SL, cíl neznámý → horší');
@@ -36,7 +38,7 @@ test('runner: TG1, pak k2 / BE / nerozhodnuto', () => {
   const tg1 = { mae: 4, mfe: 12, F: 30, A: 6 };
   assert.equal(W.runnerOutcome({ ...tg1, backToEntry: false }, 10, 2), 'target');
   assert.equal(W.runnerOutcome({ ...tg1, backToEntry: true, adverseFirst: true }, 10, 2), 'be');
-  assert.equal(W.runnerOutcome({ ...tg1, backToEntry: true, adverseFirst: false }, 10, 2), 'target');
+  assert.equal(W.runnerOutcome({ ...tg1, backToEntry: true, adverseFirst: false }, 10, 2), 'be', 'zpět na vstup → BE i s „Ne"');
   assert.equal(W.runnerOutcome({ ...tg1, F: 15, backToEntry: true }, 10, 2), 'be');
   assert.equal(W.runnerOutcome({ ...tg1, F: 15, backToEntry: false }, 10, 2), 'undecided');
   assert.equal(W.runnerOutcome({ ...tg1, F: 30, backToEntry: null }, 10, 2), 'undecided');
@@ -186,4 +188,35 @@ test('nad 20 % nerozhodnutých je stav varianty nejvýš ~ a věta to řekne', (
   assert.equal(wi.variant.undecided, 12);
   assert.notEqual(wi.state, 'ok');
   assert.match(wi.undecidedNote, /nerozhodnut/);
+});
+
+// ---------------------------------------------------------------- BE celé pozice (21. 10.)
+
+test('BE celé pozice: po +X R jde SL všech kontraktů na vstup, konzervativně', () => {
+  // S 10, cíl 20, BE po 10 t.
+  assert.equal(W.beOutcome({ mae: 10, mfe: 30, F: 30, A: 10 }, 10, 20, 10), 'stop', 'MAE ≥ S → SL');
+  assert.equal(W.beOutcome({ mae: 0, mfe: 22, F: 22, A: 0 }, 10, 20, 10), 'target', 'pod vstup nikdy, cíl během obchodu');
+  assert.equal(W.beOutcome({ mae: 3, mfe: 22, F: 22, A: 3 }, 10, 20, 10), 'be', 'pod vstupem byla, pořadí neznáme → BE');
+  assert.equal(W.beOutcome({ mae: 0, mfe: 12, F: 30, A: 2, backToEntry: false }, 10, 20, 10), 'target', 'po výstupu na cíl bez návratu');
+  assert.equal(W.beOutcome({ mae: 0, mfe: 12, F: 30, A: 15, backToEntry: true }, 10, 20, 10), 'be', 'po výstupu zpět na vstup');
+  assert.equal(W.beOutcome({ mae: 2, mfe: 6, F: 30, A: 12 }, 10, 20, 10), 'stop', 'BE nezapnuté, protipohyb na SL');
+  assert.equal(W.beOutcome({ mae: 2, mfe: 6, F: 8, A: 4 }, 10, 20, 10), 'undecided');
+});
+
+test('BE celé pozice v tradeOutcome: P/L 0 − komise; s runnerem platí před TG1', () => {
+  const mes = { instrument: 'MES', contracts: 2, commission: 3.8, slTicks: 10, exitTicks: 12, mfeTicks: 12, maeTicks: 3 };
+  const t = normAll([trade({ ...mes, postExitFavorableTicks: 20, postExitAdverseTicks: 5 })])[0];
+  const single = W.tradeOutcome(t, { ...W.defaultConfig(), target: { mode: 'r', k: 2 }, be: { afterR: 1 } });
+  assert.equal(single.kind, 'be');
+  assert.equal(r2(single.pnl), -3.8);
+  assert.equal(single.result, 'breakeven');
+  // Bez BE stejný obchod dojde na 2:1 (F = 32 ≥ 20).
+  assert.equal(W.tradeOutcome(t, { ...W.defaultConfig(), target: { mode: 'r', k: 2 } }).kind, 'target');
+  // Runner: BE po 0,5 R (5 t) dřív než TG1 (10 t) → celá pozice BE.
+  const split = W.tradeOutcome(t, { ...W.defaultConfig(), target: { mode: 'split', k1: 1, k2: 2 }, be: { afterR: 0.5 } });
+  assert.equal(split.kind, 'be');
+  // BE až po cíli nic nemění.
+  assert.equal(W.tradeOutcome(t, { ...W.defaultConfig(), target: { mode: 'r', k: 1 }, be: { afterR: 2 } }).kind, 'target');
+  assert.deepEqual(W.applyPreset(W.defaultConfig(), 'be1').be, { afterR: 1 });
+  assert.match(W.describeConfig({ be: { afterR: 1 } }), /BE po \+1 R/);
 });

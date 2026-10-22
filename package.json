@@ -1,14 +1,14 @@
 {
   "name": "backtest-lab",
-  "version": "0.5.0",
-  "description": "Backtest Lab 0.5.0 – Diagnóza (kde ztrácím a kde vydělávám), Co kdyby (pravidla dne, cíl, SL), data a pokročilé analýzy z Futures Journal PRO (read-only).",
+  "version": "0.5.1",
+  "description": "Backtest Lab 0.5.1 – Diagnóza (kde ztrácím a kde vydělávám), Co kdyby (pravidla dne, cíl, SL), data a pokročilé analýzy z Futures Journal PRO, automatické aktualizace (read-only).",
   "main": "main.js",
   "private": true,
   "author": "Jája S",
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "electron": "^43.0.0",
@@ -46,6 +46,16 @@
       "runAfterFinish": true
     },
     "artifactName": "Backtest-Lab-Setup-${version}.${ext}",
-    "asar": true
+    "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Braunn318",
+        "repo": "backtest-lab"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

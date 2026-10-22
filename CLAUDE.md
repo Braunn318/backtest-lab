@@ -82,7 +82,12 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
   behindEntry, koše freePathR / slBufferTicks, tolerance hladin. Nevracet.
 
 ## Struktura
-- main.js – okno, IPC, fs.watch. Jediný zápis: writeViews() → %APPDATA%\backtest-lab\views.json
+- main.js – okno, IPC, fs.watch. Jediný zápis: writeViews() → %APPDATA%\backtest-lab\views.json.
+  Automatické aktualizace (od 0.5.1, stejně jako deník): electron-updater jen tady; stahuje do vlastní
+  cache %LOCALAPPDATA%\backtest-lab-updater a spouští instalátor Labu – do dat deníku nic. Jen
+  nainstalovaná aplikace (app.isPackaged), autoDownload / autoInstallOnAppQuit vypnuté.
+- lib/updates.js – čisté funkce aktualizací (UPDATE_REPO = backtest-lab, kanál podle tagu, verze);
+  app/updates.js + ui-updates.js – nabídka (dialog) a skupina „Aktualizace“ v postranním panelu.
 - app/views.js – co smí do views.json a jak se čistí (sanitizeViews, sdílí main.js i okno),
   rozbalené sekce openSections { obrazovka: [id] }, navDetailsClosed (sbalené Podrobnosti), levelBin
   (1 / 2 / 4), co se maže při změně deníku (JOURNAL_SCOPED)
@@ -186,9 +191,15 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
   vypadalo jako účinek varianty (1:1 na Phidias 1: +121 $ proti skutečnosti, ale −92 $ na stejných).
 - Kontrolní čísla §4 (tests/control-numbers.test.js) sedí 21. 10. všech 10. Fixtura z reálného exportu
   se do repa nekopíruje: LAB_FIXTURE=<cesta k exportu> npm test, nebo Claude files/phidias1-2026-10-21.json.
-- Otevřené (čeká na uživatele): postExitAdverseFirst ukládá deník jako false i bez odpovědi (výchozí
-  „Ne" ve formuláři) → pravidlo 3 „obojí → false ? target" může být optimistické; touchedEntry je
-  dopočet deníku jen u výstupu v zisku – Lab ho doplňuje faktem (výstup na vstupu / pod ním = true).
+- postExitAdverseFirst se v Co kdyby NEPOUŽÍVÁ (deník ukládá „Ne" i bez odpovědi). Rozhodnutí
+  uživatele 21. 10.: cena po výstupu došla na SL → SL, i když došla i na cíl; runner zpět na vstupu → BE.
+- backToEntry (normalize.js) = touchedEntry deníku (jen výstup v zisku) + výstup na vstupu / pod ním
+  = true. Potvrzeno uživatelem 21. 10.
+- Co kdyby NEVYBÍRÁ optimální variantu – pravidlo „Lab nic nedoporučuje" potvrzeno uživatelem 21. 10.
+  (dotaz na „optimální variantu" → zůstává jen porovnání variant vedle skutečnosti). Mřížka variant
+  se stabilní oblastí byla nabídnuta jako alternativa, nezadána.
+- BE celé pozice (cfg.be.afterR, whatif.beOutcome) vedle runner + BE (rozdělení). MAE > 0 při zapnutém
+  BE = BE (pořadí neznáme) → výsledek je spodní odhad (2:1 + BE 1R na Phidias 1: −668 $ na stejných).
 
 ## Přehlednost (ZADANI_PREHLEDNOST.md, od 0.4 ZADANI_LAB_SOUHRN.md)
 - Navigace do 0.4: Souhrn · Podrobnosti ▸ · Data. Od 0.5 viz Přestavba výše.
@@ -239,8 +250,13 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
   SL / TP předběžně, kontext 3 dimenze předběžně; úplnost kontextu 8 % (známka / trend 30m).
 - 0.5.0 (21. 10., docs/ZADANI_LAB_PRESTAVBA.md): Diagnóza + Co kdyby, nová navigace a výběr nahoře.
   Commitnuto na test a vydáno 21. 10. jako pre-release v0.5.0 (test) s instalátorem – čeká na ověření
-  uživatelem a na rozhodnutí o postExitAdverseFirst / touchedEntry (viz Přestavba), pak merge do main. 240 testů.
-- Vydání na test: skill `.claude/skills/release_test` (gitignored, lokální).
+  uživatelem , pak merge do main. 240 testů.
+- 0.5.1 (21. 10.): automatické aktualizace + úpravy z večera 21. 10. (postExitAdverseFirst, BE celé
+  pozice). Vydáno 22. 10. jako pre-release v0.5.1-test s instalátorem a latest.yml – čeká na ověření. Lab zatím nemá žádné finální
+  vydání a aktualizace sama nabízí jen finální → do prvního release_final jen tlačítkem Test verze.
+- Tagy od 0.5.1: test = v<X.Y.Z>-test(.N) (pre-release, target test), finální = v<X.Y.Z> (Latest, main),
+  vždy zip, .exe, .exe.blockmap a latest.yml.
+- Vydání: skilly `.claude/skills/release_test` a `release_final` (gitignored, lokální).
 - Další v řadě: fáze 3 krok 4 – dva deníky vedle sebe (§8.1, nikdy nesčítat). NEZAČÍNAT,
   čeká na rozhodnutí uživatele, až bude víc dnů.
   Výsledek kroku 1: Phidias 1 z = +0,47 (náhodné), Backtest_1 z = −0,83.

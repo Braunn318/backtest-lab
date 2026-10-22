@@ -1,3 +1,19 @@
+## 0.5.1 - 2026-10-21
+Automatické aktualizace – stejně jako Futures Journal PRO.
+- Lab si na GitHubu (jen repozitář Braunn318/backtest-lab) sám zjistí novou FINÁLNÍ verzi – 30 s po
+  startu a pak každých 6 hodin – a nabídne ji s „Co je nového". Bez potvrzení se nic nestahuje ani
+  neinstaluje; „Později" platí do konce běhu. Po potvrzení se stáhne, nainstaluje a Lab se sám spustí.
+- Postranní panel → Aktualizace: stav, „Zkontrolovat aktualizace", „Aktualizovat na X". Volba
+  „Povolit testovací (pre-release) verze" (pamatuje se ve views.json) ukáže tlačítko „Zkontrolovat
+  aktualizace Test verze" s varováním.
+- electron-updater (jen hlavní proces, lib/updates.js + main.js), instalátor nese app-update.yml,
+  vydání nově i latest.yml a .blockmap. Updater zapisuje jen do své cache
+  %LOCALAPPDATA%acktest-lab-updater – do dat deníku nic.
+- Vydávání: testovací tagy s příponou (v0.5.1-test, -test.2), nový skill release_final (tag v0.5.1,
+  Latest). První verzi s aktualizacemi je nutné nainstalovat ručně (0.5.0 a starší updater nemají).
+- Testy: tests/updates.test.js (kanál podle tagu, verze, texty nabídky, jen repozitář Labu, main.js
+  jde přeložit); pojistka read-only hlídá i lib/updates.js. 250 testů.
+
 ## 0.5.0 - 2026-10-21
 Zadání docs/ZADANI_LAB_PRESTAVBA.md (nahrazuje ZADANI_LAB_SIMULATOR_CILE.md). Lab dál jen čte,
 do MFE / MAE jen naměřené, žádné číslo bez N, prahy 10 / 30 se nesnižují.
@@ -30,6 +46,12 @@ Co kdyby (app/whatif.js, ui-whatif.js)
 - Tabulka Skutečnost | Varianta | 2 uložené varianty, equity v $, P/L po týdnech, co varianta
   odřízla, drží to? (bez jednoho dne, 1. × 2. polovina), varování o přeladění u filtrů B,
   Zkopírovat jako text.
+- „Protipohyb přišel dřív?" (postExitAdverseFirst) výsledek nerozhoduje – deník ukládá „Ne" i bez
+  odpovědi. Rozhodnutí uživatele 21. 10.: když cena po výstupu došla na SL, je to SL (i když došla
+  i na cíl); runner, u kterého se cena vrátila na vstup, je BE.
+- BE celé pozice (blok C, předvolba „BE po 1R"): po +X R jde SL všech kontraktů na vstup; kombinuje
+  se s libovolným cílem, u rozdělení platí před TG1 (runner + BE po TG1 zůstává). Konzervativně: když
+  cena během obchodu byla i pod vstupem (MAE > 0), nevíme, jestli před nebo po +X R → BE.
 - LabDaySim: nové pravidlo afterTarget (konec po N targetech dne). Denní risk ho nenabízí.
 - normalize: hodnota ticku (TICK_VALUES), riskUSD, plán dne, poznámka, psychika před vstupem,
   backToEntry (= touchedEntry deníku + výstup na vstupu nebo pod ním).

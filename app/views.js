@@ -21,9 +21,10 @@
   const VIEW_CHOICES = { levelBin: [1, 2, 4] };
   // navAdvancedOpen = skupina „Pokročilé" v navigaci rozbalená (výchozí sbalená –
   // ukládá se jen rozbalení, false se v pohledech neukládá).
-  const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen']);
+  // updateTestChannel = povolit testovací (pre-release) verze při ruční kontrole aktualizací.
+  const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen', 'updateTestChannel']);
   const OBJECT_VIEWS = ['openSections', 'whatif', 'diagWords'];
-  const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS), ...OBJECT_VIEWS];
+  const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen', 'updateTestChannel', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS), ...OBJECT_VIEWS];
 
   // Rozbalené sekce, zvlášť pro každou obrazovku: { sltp: ['mae', 'grid'], … }.
   // Výchozí stav je sbaleno – ukládá se jen to, co uživatel rozbalil.
@@ -83,7 +84,11 @@
     if (tIn.mode === 'r') target = { mode: 'r', k: k(tIn.k, 1) };
     else if (tIn.mode === 'planned') target = { mode: 'planned' };
     else if (tIn.mode === 'split') target = { mode: 'split', k1: k(tIn.k1, 1), k2: k(tIn.k2, 2) };
-    return { rules, exclude, sl, target };
+    const out = { rules, exclude, sl, target };
+    // BE celé pozice: po +afterR R ve směru jde SL všech kontraktů na vstup.
+    const beAfter = src.be && typeof src.be === 'object' ? numberIn(src.be.afterR, 0.1, 20) : null;
+    if (beAfter != null) out.be = { afterR: beAfter };
+    return out;
   }
 
   // { current: varianta, saved: [až 2 uložené varianty nebo null] }

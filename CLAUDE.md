@@ -264,6 +264,8 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
   SR řádky s místem 12/23 (proti TP) a 16/33 (proti SL). Phidias 1: 36 dnů, runs z = +0,57,
   mřížka variant bez stabilní oblasti, „2 SL za sebou" neprojde bez jednoho dne.
 - Fixtury z reálných dat (kdyby byly potřeba) patří do „Claude files/" (gitignore), ne do repa.
+- 0.5.201 (1. 11.): popisky LTA Levels u hladin v blízkosti (taxonomy.LTA_LEVELS z deníku 4.8.99+),
+  vydané jako pre-release v0.5.201-test; čeká na ověření uživatelem, pak merge do main.
 
 ## Konvence
 - Číslování verzí (pokyn uživatele 22. 10. 2026): po 0.5.1 jde 0.5.201, 0.5.202, 0.5.203 … (čte se

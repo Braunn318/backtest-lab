@@ -1,3 +1,19 @@
+## 0.5.201 - 2026-11-01
+LTA Levels z deníku (Futures Journal PRO 4.8.99+) u hladin v blízkosti.
+- Hladiny v blízkosti s klíči LTA_… (např. LTA_ID_VPOC) se ukazují pod svým popiskem z deníku, ne jako
+  holý klíč. Popisek se bere z taxonomy.LTA_LEVELS v ai-exportu: přejmenování (labels) > název volby
+  (custom). Takový klíč je známý – nehlásí se mezi neznámými klíči a v Hladinách podle typu nemá
+  štítek „neznámý klíč". Skrytí volby v deníku (hidden) na Lab nemá vliv.
+- Lab hledá skupinu, které klíč patří, stejně jako deník (FJTaxonomy.ownerOf): výchozí hladina
+  ENTRY_LEVEL, jinak LTA Levels, jinak ENTRY_LEVEL s vlastními volbami. LTA volby platí jen u hladin
+  v blízkosti – u hladiny vstupu zůstávají neznámé (v deníku tam nejsou).
+- labels.js: slovník LTA_LEVELS (bez výchozích voleb), FIELD_EXTRA, vocabularyOfField, isKnownField;
+  labelOfField hledá podle vlastníka klíče. Používají je kontrola neznámých klíčů (normalize.js),
+  Hladiny podle typu (strength.js), kontrola 16 „Hladiny za SL nebo za cílem" (dřív holý klíč)
+  a LabUI.levelLabel.
+- Testy: tests/labels-lta.test.js (popisek labels > custom, known, Hladiny podle typu, LTA klíč
+  u hladiny vstupu a export bez taxonomie). 254 testů.
+
 ## 0.5.1 - 2026-10-21
 Automatické aktualizace – stejně jako Futures Journal PRO.
 - Lab si na GitHubu (jen repozitář Braunn318/backtest-lab) sám zjistí novou FINÁLNÍ verzi – 30 s po

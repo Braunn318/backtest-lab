@@ -266,6 +266,11 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
 - Fixtury z reálných dat (kdyby byly potřeba) patří do „Claude files/" (gitignore), ne do repa.
 
 ## Konvence
+- Číslování verzí (pokyn uživatele 22. 10. 2026): po 0.5.1 jde 0.5.201, 0.5.202, 0.5.203 … (čte se
+  „0.5.2.01, 0.5.2.02“; čtyřmístná verze ani úvodní nula technicky nejdou – electron-builder
+  a aktualizace berou jen X.Y.Z). Nová dávka práce = +1 (0.5.201 → 0.5.202), nepřeskakovat.
+  Jedno číslo platí pro všechny release_test buildy i release_final té verze – mění se jen tag
+  (v0.5.201-test, v0.5.201-test.2 … → v0.5.201).
 - Repozitář: github.com/Braunn318/backtest-lab (veřejný, jako deník). `main` = ověřený
   stav, `test` = rozpracované; merge do main až po ověření uživatelem.
 - Kód na branchi test, merge do main až po ověření.

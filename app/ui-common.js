@@ -44,8 +44,9 @@
     return `<span class="sample ok">N = ${n}</span>`;
   }
 
+  // Popisek hladiny v blízkosti (ENTRY_LEVEL i LTA Levels).
   function levelLabel(key) {
-    return L.labelOf('ENTRY_LEVEL', key);
+    return L.labelOfField('nearLevels', key);
   }
 
   // ------------------------------------------------------------- sekce obrazovek

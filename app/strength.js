@@ -135,7 +135,7 @@
     const withState = rows.filter(x => x.row.testState);
     const sub = (key, label, list) => ({ key, label, ...rowStats(list), dist: distribution(list, bin) });
     const byType = [...groupBy(rows, x => x.row.level).entries()]
-      .map(([level, list]) => ({ ...sub(level, L.labelOf('ENTRY_LEVEL', level), list), known: L.isKnown('ENTRY_LEVEL', level) }))
+      .map(([level, list]) => ({ ...sub(level, L.labelOfField('nearLevels', level), list), known: L.isKnownField('nearLevels', level) }))
       .sort((a, b) => b.touched - a.touched || b.n - a.n || a.key.localeCompare(b.key));
     return {
       n: perf.length,

@@ -155,8 +155,14 @@
     ENTRY_TO_TARGET: 'mezi vstupem a cílem', BEYOND_TARGET: 'za cílem'
   };
 
+  // LTA Levels (deník 4.8.99+): hladiny z LiveTradingAsistent. Výchozí volby
+  // nemá – deník je zakládá sám (klíč LTA_ + název) a export je nese
+  // v `taxonomy.LTA_LEVELS.custom`. Hladiny v blízkosti je berou vedle
+  // ENTRY_LEVEL (NEAR_LEVEL.extraFrom v deníku).
+  const LTA_LEVELS = {};
+
   const VOCABULARIES = {
-    SETUP, ENTRY_LEVEL, OF_CONFIRM, TREND, FILL_STATUS, TARGET_LEVEL, SKIP_REASON,
+    SETUP, ENTRY_LEVEL, LTA_LEVELS, OF_CONFIRM, TREND, FILL_STATUS, TARGET_LEVEL, SKIP_REASON,
     TREND_HTF, ABS_LOCATION, ENTRY_TEST_NO, GRADE, TEST_STATE,
     OPEN_VS_VALUE, DAY_TYPE, VALUE_MIGRATION, NEWS_EVENT, SESSION
   };
@@ -184,6 +190,12 @@
     valueMigration: 'VALUE_MIGRATION',
     newsEvent: 'NEWS_EVENT',
     session: 'SESSION'
+  };
+
+  // Další slovníky, jejichž klíče pole přijímá vedle svého (jako extraFrom
+  // v deníku). Popisek takové volby se řídí její vlastní skupinou.
+  const FIELD_EXTRA = {
+    nearLevels: ['LTA_LEVELS']
   };
 
   // Popisky kontextových polí (missingContextKeys v deníku).
@@ -221,7 +233,8 @@
 
   // Úprava slovníků z exportu deníku: { SKUPINA: { custom:{KLÍČ:popisek},
   // labels:{KLÍČ:popisek}, … } }. Bere se jen custom a labels u skupin, které
-  // Lab zná. NEAR_LEVEL vlastní volby nemá – sdílí je s ENTRY_LEVEL.
+  // Lab zná (sourceNames, hidden, removed se ignorují – Lab nic neskrývá).
+  // NEAR_LEVEL vlastní volby nemá – sdílí je s ENTRY_LEVEL a LTA_LEVELS.
   // Lab drží vždy jeden deník, každé načtení overlay celý přepíše.
   const KEY_RE = /^[A-Z0-9_]{1,64}$/;
   let journal = {};
@@ -263,13 +276,28 @@
     return VOCABULARIES[vocabulary][key];
   }
 
+  // Slovník, kterému klíč pole patří – jako FJTaxonomy.ownerOf v deníku:
+  // výchozí volba hlavního slovníku, jinak volba z FIELD_EXTRA, jinak hlavní
+  // slovník (i s jeho vlastními volbami; neznámý klíč zůstane neznámý).
+  function vocabularyOfField(field, key) {
+    const vocab = FIELD_VOCABULARY[field];
+    if (!vocab || has(VOCABULARIES[vocab], key)) return vocab;
+    for (const extra of FIELD_EXTRA[field] || []) if (isKnown(extra, key)) return extra;
+    return vocab;
+  }
+
+  function isKnownField(field, key) {
+    const vocab = vocabularyOfField(field, key);
+    return !!vocab && isKnown(vocab, key);
+  }
+
   function labelOfField(field, key) {
-    return labelOf(FIELD_VOCABULARY[field], key);
+    return labelOf(vocabularyOfField(field, key), key);
   }
 
   function fieldLabel(field) {
     return FIELD_LABEL[field] || field;
   }
 
-  return { VOCABULARIES, FIELD_VOCABULARY, POSITION_LABEL, applyJournalTaxonomy, isKnown, labelOf, labelOfField, fieldLabel };
+  return { VOCABULARIES, FIELD_VOCABULARY, FIELD_EXTRA, POSITION_LABEL, applyJournalTaxonomy, isKnown, isKnownField, labelOf, labelOfField, vocabularyOfField, fieldLabel };
 }));

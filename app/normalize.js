@@ -622,8 +622,7 @@
   function unknownKeysOf(out) {
     const found = [];
     const check = (field, key) => {
-      const vocab = L.FIELD_VOCABULARY[field];
-      if (key && vocab && !L.isKnown(vocab, key)) found.push({ field, key });
+      if (key && L.FIELD_VOCABULARY[field] && !L.isKnownField(field, key)) found.push({ field, key });
     };
     for (const field of ['setupCode', 'trend', 'fillStatus', 'wouldSkipReason', 'maxLevel',
       'trendHtf', 'grade', 'absLocation', 'entryTestNo']) check(field, out[field]);

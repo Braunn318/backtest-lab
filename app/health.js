@@ -482,7 +482,7 @@
         if (row.position == null) continue;
         checked++;
         if (OUTSIDE.includes(row.position)) {
-          items.push(item(r, `${L.fieldLabel('nearLevels')}: ${row.level} ${fmt(row.price)} leží ${L.POSITION_LABEL[row.position]} (${signedTicks(row.fromEntry)} od vstupu)`));
+          items.push(item(r, `${L.fieldLabel('nearLevels')}: ${L.labelOfField('nearLevels', row.level)} ${fmt(row.price)} leží ${L.POSITION_LABEL[row.position]} (${signedTicks(row.fromEntry)} od vstupu)`));
         }
       }
     }

@@ -24,7 +24,7 @@
   // updateTestChannel = povolit testovací (pre-release) verze při ruční kontrole aktualizací.
   const BOOL_VIEWS = new Set(['includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen', 'updateTestChannel']);
   const OBJECT_VIEWS = ['openSections', 'whatif', 'diagWords'];
-  const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen', 'updateTestChannel', 'sourceDir', 'theme', 'screen', ...Object.keys(VIEW_NUMBERS), ...OBJECT_VIEWS];
+  const VIEW_KEYS = ['journalId', 'dateFrom', 'dateTo', 'instrument', 'setupCode', 'includeSkipLive', 'includeNoFill', 'includeSkipped', 'showOutsideIndex', 'navAdvancedOpen', 'updateTestChannel', 'sourceDir', 'theme', 'screen', 'unitMode', ...Object.keys(VIEW_NUMBERS), ...OBJECT_VIEWS];
 
   // Rozbalené sekce, zvlášť pro každou obrazovku: { sltp: ['mae', 'grid'], … }.
   // Výchozí stav je sbaleno – ukládá se jen to, co uživatel rozbalil.
@@ -147,6 +147,9 @@
       } else if (key === 'diagWords') {
         const w = sanitizeWords(v);
         if (w) out[key] = w;
+      } else if (key === 'unitMode') {
+        // Jednotka vzdáleností – ukládá se jen nevýchozí „body“.
+        if (v === 'points') out[key] = 'points';
       } else if (BOOL_VIEWS.has(key)) out[key] = v === true;
       else if (VIEW_NUMBERS[key]) {
         const n = Number(v);

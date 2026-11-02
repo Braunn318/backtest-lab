@@ -383,8 +383,10 @@
   };
 
   // Varianta slovy – pro hlavičku sloupce a kopírovaný text.
-  function describeConfig(cfgIn, records = []) {
+  // units = LabUnits kontext obrazovky (ticky / body); bez něj ticky.
+  function describeConfig(cfgIn, records = [], units = null) {
     const cfg = cleanConfig(cfgIn);
+    const D = v => (units ? units.d(v) : `${num(v)} t`);
     const parts = Object.entries(cfg.rules).map(([k, v]) => RULE_TEXT[k](v));
     for (const field of FILTER_FIELDS) {
       const out = cfg.exclude[field];
@@ -393,9 +395,9 @@
       parts.push(`bez: ${out.map(k => DG.groupLabel(c, k)).join(', ')}`);
     }
     const sl = cfg.sl;
-    if (sl.mode === 'wider') parts.push(`SL o ${num(sl.ticks)} t širší`);
-    if (sl.mode === 'narrower') parts.push(`SL o ${num(sl.ticks)} t užší`);
-    if (sl.mode === 'fixed') parts.push(`SL pevně ${num(sl.ticks)} t`);
+    if (sl.mode === 'wider') parts.push(`SL o ${D(sl.ticks)} širší`);
+    if (sl.mode === 'narrower') parts.push(`SL o ${D(sl.ticks)} užší`);
+    if (sl.mode === 'fixed') parts.push(`SL pevně ${D(sl.ticks)}`);
     if (cfg.be) parts.push(`SL celé pozice na BE po +${num(cfg.be.afterR)} R`);
     const t = cfg.target;
     if (t.mode === 'r') parts.push(`cíl ${num(t.k)}:1`);

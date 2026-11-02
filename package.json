@@ -1,7 +1,7 @@
 {
   "name": "backtest-lab",
-  "version": "0.5.201",
-  "description": "Backtest Lab 0.5.201 – Diagnóza (kde ztrácím a kde vydělávám), Co kdyby (pravidla dne, cíl, SL), data a pokročilé analýzy z Futures Journal PRO, automatické aktualizace (read-only).",
+  "version": "0.5.202",
+  "description": "Backtest Lab 0.5.202 – Diagnóza (kde ztrácím a kde vydělávám), Co kdyby (pravidla dne, cíl, SL), data a pokročilé analýzy z Futures Journal PRO, automatické aktualizace (read-only).",
   "main": "main.js",
   "private": true,
   "author": "Jája S",

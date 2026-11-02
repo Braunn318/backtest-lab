@@ -32,6 +32,8 @@
 
   const has = v => v !== null && v !== undefined;
   const t = v => (Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100).replace('.', ','));
+  // Vzdálenost v tikách → text v jednotce obrazovky (LabUnits); bez ní ticky.
+  const dist = (U, v) => (U ? U.d(v) : t(v) + ' t');
 
   // Percentil metodou nejbližšího pořadí – hodnota, kterou skutečně měl
   // některý obchod (žádná interpolace mezi obchody).
@@ -52,61 +54,64 @@
 
   function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
-  function stoppedVerdict(r, row) {
+  function stoppedVerdict(r, row, U) {
+    const D = v => dist(U, v);
     const sl = r.slTicks;
     if (!has(sl)) return { text: 'Bez ceny SL nejde SL posoudit.', tags: ['no-sl'] };
     if (has(r.mfeMeasured) && r.mfeMeasured <= NEVER_RAN_SHARE * sl) {
-      return { text: `MFE ${t(r.mfeMeasured)} t při SL ${t(sl)} t — obchod se nikdy nerozjel, chyba je ve vstupu, ne v SL.`, tags: ['entry'] };
+      return { text: `MFE ${D(r.mfeMeasured)} při SL ${D(sl)} — obchod se nikdy nerozjel, chyba je ve vstupu, ne v SL.`, tags: ['entry'] };
     }
     if (has(row.widerBy)) {
       const back = r.postExitFavorableTicks;
       if (has(back) && back > Math.abs(r.exitTicks)) {
-        return { text: `SL ${t(sl)} t, zasažen; cena se pak vrátila ${t(back)} t ve směru — SL o ${t(row.widerBy)} t dál by obchod uhájil.`, tags: ['sl-short'] };
+        return { text: `SL ${D(sl)}, zasažen; cena se pak vrátila ${D(back)} ve směru — SL o ${D(row.widerBy)} dál by obchod uhájil.`, tags: ['sl-short'] };
       }
       const beyond = row.widerBy - 1;
       return {
-        text: `SL ${t(sl)} t, zasažen; cena šla ${t(beyond)} t za SL` + (has(back) ? ` a vrátila se jen ${t(back)} t` : '') + ' — širší SL by ztrátu jen zvětšil.',
+        text: `SL ${D(sl)}, zasažen; cena šla ${D(beyond)} za SL` + (has(back) ? ` a vrátila se jen ${D(back)}` : '') + ' — širší SL by ztrátu jen zvětšil.',
         tags: ['sl-ok']
       };
     }
-    return { text: `SL ${t(sl)} t zasažen; pohyb po stopce není zapsaný — nejde říct, jestli by širší SL pomohl.`, tags: ['unknown'] };
+    return { text: `SL ${D(sl)} zasažen; pohyb po stopce není zapsaný — nejde říct, jestli by širší SL pomohl.`, tags: ['unknown'] };
   }
 
-  function slPart(r, row) {
+  function slPart(r, row, U) {
+    const D = v => dist(U, v);
     const sl = r.slTicks;
     if (!has(sl)) return { text: 'bez ceny SL nejde SL posoudit', tag: 'no-sl' };
     if (!has(r.maeMeasured)) {
       return { text: r.mae.tier === 'derived' ? 'MAE je jen dopočtené — šířku SL nejde posoudit' : 'MAE není naměřené — šířku SL nejde posoudit', tag: 'unknown' };
     }
     const mae = r.maeMeasured;
-    if (row.reserve <= 0) return { text: `MAE ${t(mae)} t ≥ SL ${t(sl)} t, a přesto nevystopován — zkontroluj zápis`, tag: 'sl-short' };
-    if (row.reserve <= SL_RESERVE_TICKS) return { text: `SL ${t(sl)} t, cena proti šla ${t(mae)} t — SL byl těsně (rezerva ${t(row.reserve)} t)`, tag: 'sl-tight' };
-    if (mae <= sl / 2) return { text: `SL ${t(sl)} t, cena proti šla ${t(mae)} t — SL byl zbytečně široký, ${t(mae + SL_RESERVE_TICKS)} t by stačilo`, tag: 'sl-wide' };
-    return { text: `SL ${t(sl)} t, cena proti šla ${t(mae)} t — SL odpovídal`, tag: 'sl-ok' };
+    if (row.reserve <= 0) return { text: `MAE ${D(mae)} ≥ SL ${D(sl)}, a přesto nevystopován — zkontroluj zápis`, tag: 'sl-short' };
+    if (row.reserve <= SL_RESERVE_TICKS) return { text: `SL ${D(sl)}, cena proti šla ${D(mae)} — SL byl těsně (rezerva ${D(row.reserve)})`, tag: 'sl-tight' };
+    if (mae <= sl / 2) return { text: `SL ${D(sl)}, cena proti šla ${D(mae)} — SL byl zbytečně široký, ${D(mae + SL_RESERVE_TICKS)} by stačilo`, tag: 'sl-wide' };
+    return { text: `SL ${D(sl)}, cena proti šla ${D(mae)} — SL odpovídal`, tag: 'sl-ok' };
   }
 
-  function tpPart(r) {
+  function tpPart(r, U) {
+    const D = v => dist(U, v);
     if (r.result === 'target') {
       const fav = r.postExitFavorableTicks;
       if (!has(fav)) return { text: 'pokračování po výstupu není zapsané', tag: 'unknown' };
       if (fav === 0) return { text: 'po výstupu cena dál nešla — cíl byl na maximu', tag: 'tp-ok' };
       if (fav >= Math.max(TP_CLOSE_MIN_TICKS, NEVER_RAN_SHARE * Math.abs(r.exitTicks || 0))) {
-        return { text: `TP ${t(r.exitTicks)} t, po výstupu pokračovalo dalších ${t(fav)} t — cíl byl blízko`, tag: 'tp-close' };
+        return { text: `TP ${D(r.exitTicks)}, po výstupu pokračovalo dalších ${D(fav)} — cíl byl blízko`, tag: 'tp-close' };
       }
-      return { text: `po výstupu jen ${t(fav)} t — cíl odpovídal`, tag: 'tp-ok' };
+      return { text: `po výstupu jen ${D(fav)} — cíl odpovídal`, tag: 'tp-ok' };
     }
-    if (has(r.mfeMeasured)) return { text: `obchod došel na MFE ${t(r.mfeMeasured)} t a skončil na ${t(r.exitTicks)} t`, tag: 'be' };
+    if (has(r.mfeMeasured)) return { text: `obchod došel na MFE ${D(r.mfeMeasured)} a skončil na ${D(r.exitTicks)}`, tag: 'be' };
     return null;
   }
 
-  function verdictOf(r, row) {
-    if (r.isStopped) return stoppedVerdict(r, row);
-    const a = slPart(r, row);
-    const b = tpPart(r);
+  function verdictOf(r, row, U) {
+    if (r.isStopped) return stoppedVerdict(r, row, U);
+    const a = slPart(r, row, U);
+    const b = tpPart(r, U);
     return { text: capitalize(a.text) + (b ? '; ' + b.text : '') + '.', tags: [a.tag, b && b.tag].filter(Boolean) };
   }
 
-  function tradeRow(r) {
+  function tradeRow(r, U) {
     const row = {
       record: r,
       slTicks: r.slTicks,
@@ -127,7 +132,7 @@
     if (r.isStopped && r.adverseObservedAfterExit && has(r.maxAdverseMeasured) && has(r.slTicks)) {
       row.widerBy = Math.max(0, r.maxAdverseMeasured - r.slTicks) + 1;
     }
-    row.verdict = verdictOf(r, row);
+    row.verdict = verdictOf(r, row, U);
     return row;
   }
 
@@ -334,7 +339,7 @@
   function computeSlTp(perf, options = {}) {
     return {
       n: perf.length,
-      trades: perf.map(tradeRow),
+      trades: perf.map(r => tradeRow(r, options.units)),
       derived: {
         mfe: perf.filter(r => r.mfe.tier === 'derived').length,
         mae: perf.filter(r => r.mae.tier === 'derived').length

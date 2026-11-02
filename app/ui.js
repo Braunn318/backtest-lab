@@ -221,6 +221,15 @@
 
   // ------------------------------------------------------------- obsah
 
+  // Tlačítko jednotky ukazuje, co je zvolené (body i tehdy, když výběr spadl na ticky).
+  function renderUnitToggle(units) {
+    const b = $('unitToggle');
+    if (!b) return;
+    const pts = units.requested === 'points';
+    b.textContent = pts ? '📏 Body' : '📏 Ticky';
+    b.classList.toggle('active', pts);
+  }
+
   function render() {
     renderSidebar();
     const screen = window.LabScreens[currentScreen()];
@@ -236,7 +245,10 @@
     const options = H.includeOf(state.views);
     const health = H.computeHealth(filtered, options);
     const perf = H.partition(filtered, options).perf;
-    const ctx = { records: filtered, perf, health, views: state.views, options };
+    // Jednotka vzdáleností (ticky / body) pro celý výběr – LabUnits.
+    const units = window.LabUnits.context(filtered, state.views.unitMode);
+    const ctx = { records: filtered, perf, health, views: state.views, options, units };
+    renderUnitToggle(units);
     lastCtx = ctx;
     let body, scope = null;
     try {
@@ -245,7 +257,8 @@
     } catch (err) {
       body = `<div class="error">Obrazovku nejde vykreslit: ${esc(err && err.message)}</div>`;
     }
-    content.innerHTML = errorBox + headerStrip(filtered, health.sample, scope) + body;
+    const unitNote = units.fallback ? `<div class="hint unit-note">${esc(window.LabUnits.FALLBACK_NOTE)}</div>` : '';
+    content.innerHTML = errorBox + headerStrip(filtered, health.sample, scope) + unitNote + body;
     // Nabídka aktualizace až po prvním vykreslení obrazovky.
     if (window.LabUpdatesUI) window.LabUpdatesUI.ready();
   }
@@ -314,6 +327,10 @@
     $('themeToggle').addEventListener('click', () => {
       setView('theme', document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
       applyTheme();
+    });
+    $('unitToggle').addEventListener('click', () => {
+      setView('unitMode', state.views.unitMode === 'points' ? '' : 'points');
+      render();
     });
     $('reload').addEventListener('click', reloadAll);
     $('sourceChoose').addEventListener('click', async () => {

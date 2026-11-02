@@ -18,12 +18,12 @@
 (function (root, factory) {
   const isNode = typeof module !== 'undefined' && module.exports;
   const deps = isNode
-    ? ['./health.js', './sltp.js', './strength.js', './sequence.js', './daysim.js', './variants.js', './context.js'].map(f => require(f))
-    : [root.LabHealth, root.LabSlTp, root.LabStrength, root.LabSequence, root.LabDaySim, root.LabVariants, root.LabContext];
+    ? ['./health.js', './sltp.js', './strength.js', './sequence.js', './daysim.js', './variants.js', './context.js', './units.js'].map(f => require(f))
+    : [root.LabHealth, root.LabSlTp, root.LabStrength, root.LabSequence, root.LabDaySim, root.LabVariants, root.LabContext, root.LabUnits];
   const api = factory(...deps);
   if (isNode) module.exports = api;
   if (root) root.LabOverview = api;
-}(typeof globalThis !== 'undefined' ? globalThis : this, function (H, S, ST, SQ, D, VA, CX) {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (H, S, ST, SQ, D, VA, CX, LU) {
 
   const STATES = ['ok', 'weak', 'na'];
   const ICON = { ok: '✓', weak: '~', na: '–' };
@@ -84,55 +84,59 @@
   //   headline – hlavní číslo / verdikt do hlavičky sbalené sekce
   //   missing  – co chybí a kolik („Zatím nejde — chybí …"), jen když state = na
 
-  function maeState(d) {
+  function maeState(d, units) {
+    const U = LU.of(units);
     const state = bySample(d.n);
     return {
       state,
-      fact: d.n ? `MAE vítězů: 90 % ziskových obchodů šlo proti nejvýš ${num(d.p90)} t (medián ${num(d.p50)} t)` : null,
-      headline: d.n ? `p90 ${num(d.p90)} t · naměřeno ${d.n} z ${d.winners}` : `naměřeno ${d.n} z ${d.winners}`,
+      fact: d.n ? `MAE vítězů: 90 % ziskových obchodů šlo proti nejvýš ${U.d(d.p90)} (medián ${U.d(d.p50)})` : null,
+      headline: d.n ? `p90 ${U.d(d.p90)} · naměřeno ${d.n} z ${d.winners}` : `naměřeno ${d.n} z ${d.winners}`,
       missing: `${GREY - d.n} ${plural(GREY - d.n, 'ziskový obchod', 'ziskové obchody', 'ziskových obchodů')} s naměřeným MAE do ${GREY} (je ${d.n} z ${d.winners} ziskových)`
     };
   }
 
-  function mfeState(d) {
+  function mfeState(d, units) {
+    const U = LU.of(units);
     const state = bySample(d.n);
     const oneR = d.byR.find(x => x.r === 1);
     const reach = oneR && oneR.n ? `; 1 R by stihlo ${oneR.reach} z ${oneR.n}` : '';
     return {
       state,
-      fact: d.n ? `stopnuté obchody došly ve směru mediánem ${num(d.p50)} t (p75 ${num(d.p75)} t)${reach}` : null,
-      headline: d.n ? `medián ${num(d.p50)} t${oneR && oneR.n ? ` · 1 R ${pct(oneR.pct)}` : ''} · naměřeno ${d.n} z ${d.stopped}` : `naměřeno ${d.n} z ${d.stopped}`,
+      fact: d.n ? `stopnuté obchody došly ve směru mediánem ${U.d(d.p50)} (p75 ${U.d(d.p75)})${reach}` : null,
+      headline: d.n ? `medián ${U.d(d.p50)}${oneR && oneR.n ? ` · 1 R ${pct(oneR.pct)}` : ''} · naměřeno ${d.n} z ${d.stopped}` : `naměřeno ${d.n} z ${d.stopped}`,
       missing: `${GREY - d.n} ${plural(GREY - d.n, 'stopnutý obchod', 'stopnuté obchody', 'stopnutých obchodů')} s naměřeným MFE do ${GREY} (je ${d.n} z ${d.stopped} stopnutých)`
     };
   }
 
-  function sweepState(sw) {
+  function sweepState(sw, units) {
+    const U = LU.of(units);
     const points = SWEEP_POINTS.map(s => sw.rows.find(r => r.S === s)).filter(Boolean);
     const above = points.some(r => r.aboveObserved > 0);
-    const list = points.map((r, i) => `${i ? 's' : 'se SL'} ${r.S} t ${pct(r.stoppedPct)}`).join(', ');
+    const list = points.map((r, i) => `${i ? 's' : 'se SL'} ${U.d(r.S)} ${pct(r.stoppedPct)}`).join(', ');
     return {
       state: bySample(sw.n, SWEEP_WARN),
       fact: sw.n ? `SL sweep: ${list} obchodů by vystopovalo${above ? ' (část přežití je nad pozorovaným rozsahem)' : ''}` : null,
-      headline: sw.n ? `${points.map(r => `${r.S} t → ${pct(r.stoppedPct)} stop`).join(' · ')} · n ${sw.n} z ${sw.total}` : `hodnotitelných ${sw.n} z ${sw.total}`,
+      headline: sw.n ? `${points.map(r => `${U.d(r.S)} → ${pct(r.stoppedPct)} stop`).join(' · ')} · n ${sw.n} z ${sw.total}` : `hodnotitelných ${sw.n} z ${sw.total}`,
       missing: `${GREY - sw.n} ${plural(GREY - sw.n, 'obchod', 'obchody', 'obchodů')} s naměřeným protipohybem do ${GREY} (je ${sw.n} z ${sw.total})`
     };
   }
 
-  function gridState(g) {
+  function gridState(g, units) {
+    const U = LU.of(units);
     const ok = g.n && g.best;
     return {
       state: ok ? bySample(g.n, SWEEP_WARN) : 'na',
-      fact: ok ? `stabilní oblast mřížky SL × TP leží kolem SL ${g.best.S} t / TP ${num(g.best.k)} R (okolí ${signedR(g.best.neighborhood)} na obchod)${g.isolatedPeak ? ', maximum jedné buňky je osamělé' : ''}` : null,
-      headline: ok ? `stabilní oblast SL ${g.best.S} t / TP ${num(g.best.k)} R · okolí ${signedR(g.best.neighborhood)} · n ${g.n} z ${g.total}` : `n ${g.n} z ${g.total}`,
+      fact: ok ? `stabilní oblast mřížky SL × TP leží kolem SL ${U.d(g.best.S)} / TP ${num(g.best.k)} R (okolí ${signedR(g.best.neighborhood)} na obchod)${g.isolatedPeak ? ', maximum jedné buňky je osamělé' : ''}` : null,
+      headline: ok ? `stabilní oblast SL ${U.d(g.best.S)} / TP ${num(g.best.k)} R · okolí ${signedR(g.best.neighborhood)} · n ${g.n} z ${g.total}` : `n ${g.n} z ${g.total}`,
       missing: `${GREY - g.n} ${plural(GREY - g.n, 'obchod', 'obchody', 'obchodů')} s naměřeným maximem proti i ve směru do ${GREY} (je ${g.n} z ${g.total})`
     };
   }
 
   // Hladiny v blízkosti (v3 B2): stav podle počtu DOTČENÝCH řádků – nedotčená
   // hladina z výpočtů reakce vypadává. Věta popisuje rozložení, nic nevybírá.
-  const signedT = v => (v > 0 ? '+' : v < 0 ? '−' : '') + num(Math.abs(v)) + ' t';
-
-  function levelsState(st) {
+  
+  function levelsState(st, units) {
+    const U = LU.of(units);
     const state = st.totalRows ? bySample(st.touched) : 'na';
     const lack = Math.max(0, GREY - st.touched);
     let missing;
@@ -143,29 +147,31 @@
       state,
       fact: st.touched
         ? `${st.touched} ${plural(st.touched, 'dotčená hladina', 'dotčené hladiny', 'dotčených hladin')} – ${st.touchedAhead} ve směru obchodu, ${st.touchedBehind} na vstupu a proti`
-          + (has(st.medianOvershoot) ? `; cena za ně zajela mediánem ${num(st.medianOvershoot)} t` : '')
+          + (has(st.medianOvershoot) ? `; cena za ně zajela mediánem ${U.d(st.medianOvershoot)}` : '')
         : null,
       headline: `${st.touched} dotčených · ${st.untouched} nedotčených · ${st.withDistance} z ${st.totalRows} řádků s polohou`
-        + (has(st.medianOvershoot) ? ` · medián přesahu ${num(st.medianOvershoot)} t` : ''),
+        + (has(st.medianOvershoot) ? ` · medián přesahu ${U.d(st.medianOvershoot)}` : ''),
       missing
     };
   }
 
   // SL za nejbližší hladinou mezi SL a cílem: stopnuté × přeživší.
-  function stopBehindState(sb) {
+  function stopBehindState(sb, units) {
+    const U = LU.of(units);
     const m = Math.min(sb.stopped.n, sb.survived.n);
     return {
       state: bySample(m),
-      fact: sb.n ? `SL ležel za nejbližší hladinou mediánem ${num(sb.stopped.median)} t u stopnutých (n ${sb.stopped.n}) a ${num(sb.survived.median)} t u přeživších (n ${sb.survived.n})` : null,
-      headline: `stopnuté ${sb.stopped.n}${has(sb.stopped.median) ? ` · medián ${num(sb.stopped.median)} t` : ''} · přeživší ${sb.survived.n}${has(sb.survived.median) ? ` · medián ${num(sb.survived.median)} t` : ''} · bez hladiny mezi SL a cílem ${sb.unknown}`,
+      fact: sb.n ? `SL ležel za nejbližší hladinou mediánem ${U.d(sb.stopped.median)} u stopnutých (n ${sb.stopped.n}) a ${U.d(sb.survived.median)} u přeživších (n ${sb.survived.n})` : null,
+      headline: `stopnuté ${sb.stopped.n}${has(sb.stopped.median) ? ` · medián ${U.d(sb.stopped.median)}` : ''} · přeživší ${sb.survived.n}${has(sb.survived.median) ? ` · medián ${U.d(sb.survived.median)}` : ''} · bez hladiny mezi SL a cílem ${sb.unknown}`,
       missing: `${GREY - m} ${plural(GREY - m, 'obchod', 'obchody', 'obchodů')} v menší skupině do ${GREY} (stopnuté ${sb.stopped.n} · přeživší ${sb.survived.n} · bez hladiny s polohou mezi SL a cílem ${sb.unknown})`
     };
   }
 
   // Nejbližší hladina ve směru obchodu: cíl dosažen × nedosažen.
-  function nearestAheadState(na) {
+  function nearestAheadState(na, units) {
+    const U = LU.of(units);
     const m = Math.min(na.reached.n, na.missed.n);
-    const part = p => `${num(p.medianTicks)} t${has(p.medianR) ? ` (${num(p.medianR)} R)` : ''}`;
+    const part = p => `${U.d(p.medianTicks)}${has(p.medianR) ? ` (${num(p.medianR)} R)` : ''}`;
     return {
       state: bySample(m),
       fact: na.n ? `nejbližší hladina ve směru ležela mediánem ${part(na.reached)} u obchodů na cíli (n ${na.reached.n}) a ${part(na.missed)} u ostatních (n ${na.missed.n})` : null,
@@ -313,7 +319,7 @@
     const { records, perf, views = {}, options = {} } = ctx;
     const riskOptions = { ...options, unitUSD: views.riskUnitUSD };
     const an = {
-      sltp: S.computeSlTp(perf, { targetR: views.sweepTargetR || 1 }),
+      sltp: S.computeSlTp(perf, { targetR: views.sweepTargetR || 1, units: ctx.units }),
       strength: ST.computeStrength(perf, { bin: views.levelBin }),
       seq: SQ.computeSequence(records, options),
       va: VA.computeVariants(records, riskOptions),
@@ -332,16 +338,17 @@
   function computeOverview(ctx) {
     const { health } = ctx;
     const { sltp, strength, seq, va, sim, context } = analyses(ctx);
+    const U = ctx.units;
     const st = {
       series: seriesState(seq),
       dayStop: sim.active ? simState(sim, va) : variantsState(va),
-      mae: maeState(sltp.maeWinners),
-      mfe: mfeState(sltp.mfeStopped),
-      sweep: sweepState(sltp.sweep),
-      grid: gridState(sltp.grid),
-      levels: levelsState(strength),
-      stopBehind: stopBehindState(strength.stopBehind),
-      nearestAhead: nearestAheadState(strength.nearestAhead),
+      mae: maeState(sltp.maeWinners, U),
+      mfe: mfeState(sltp.mfeStopped, U),
+      sweep: sweepState(sltp.sweep, U),
+      grid: gridState(sltp.grid, U),
+      levels: levelsState(strength, U),
+      stopBehind: stopBehindState(strength.stopBehind, U),
+      nearestAhead: nearestAheadState(strength.nearestAhead, U),
       control: controlState(strength.control),
       fill: fillState(health.checks.find(c => c.id === 9))
     };

@@ -13,12 +13,12 @@
 (function (root, factory) {
   const isNode = typeof module !== 'undefined' && module.exports;
   const deps = isNode
-    ? ['./overview.js', './context.js', './sequence.js'].map(f => require(f))
-    : [root.LabOverview, root.LabContext, root.LabSequence];
+    ? ['./overview.js', './context.js', './sequence.js', './units.js'].map(f => require(f))
+    : [root.LabOverview, root.LabContext, root.LabSequence, root.LabUnits];
   const api = factory(...deps);
   if (isNode) module.exports = api;
   if (root) root.LabSummary = api;
-}(typeof globalThis !== 'undefined' ? globalThis : this, function (O, CX, SQ) {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (O, CX, SQ, LU) {
 
   const { num, signedR, capitalize, lowerFirst, plural, bySample } = O;
   const GREY = 10;
@@ -57,29 +57,31 @@
 
   // ------------------------------------------------------------- čtyři otázky
 
-  function slCard(sltp) {
+  function slCard(sltp, units) {
+    const U = LU.of(units);
     const d = sltp.maeWinners;
     const mode = sltp.slMode;
-    const st = O.maeState(d);
-    const modeText = mode.values.length ? `, tvůj nejčastější SL je ${mode.values.map(num).join(' / ')} t` : '';
-    return card('sl', 'sltp', 'SL', 'p90 MAE vítězů', { ...st, fact: d.n ? `90 % ziskových obchodů šlo proti nejvýš ${num(d.p90)} t${modeText}` : null },
-      d.p90, 't', { slMode: mode.values, n: d.n });
+    const st = O.maeState(d, U);
+    const modeText = mode.values.length ? `, tvůj nejčastější SL je ${mode.values.map(U.num).join(' / ')} ${U.suffix}` : '';
+    return card('sl', 'sltp', 'SL', 'p90 MAE vítězů', { ...st, fact: d.n ? `90 % ziskových obchodů šlo proti nejvýš ${U.d(d.p90)}${modeText}` : null },
+      U.value(d.p90), U.suffix, { slMode: mode.values, n: d.n });
   }
 
-  function tpCard(sltp) {
+  function tpCard(sltp, units) {
+    const U = LU.of(units);
     const d = sltp.tpAfter;
     const lack = GREY - d.n;
     const st = {
       state: bySample(d.n),
-      fact: d.n ? `po targetu cena v mediánu pokračovala ještě ${num(d.p50)} t` : null,
+      fact: d.n ? `po targetu cena v mediánu pokračovala ještě ${U.d(d.p50)}` : null,
       missing: `${lack} ${plural(lack, 'obchod', 'obchody', 'obchodů')} na targetu se zapsaným pohybem po výstupu do ${GREY} (je ${d.n} z ${d.targets})`
     };
-    return card('tp', 'sltp', 'TP', 'medián pohybu po targetu', st, d.p50, 't', { n: d.n });
+    return card('tp', 'sltp', 'TP', 'medián pohybu po targetu', st, U.value(d.p50), U.suffix, { n: d.n });
   }
 
   // Bod zlomu se nehledá (rozhodnutí uživatele 14. 10.) – jen N dotčených a popis rozložení.
-  function levelsCard(strength) {
-    return card('levels', 'levels', 'Hladiny', 'dotčených hladin', O.levelsState(strength), strength.touched, '', { n: strength.touched });
+  function levelsCard(strength, units) {
+    return card('levels', 'levels', 'Hladiny', 'dotčených hladin', O.levelsState(strength, units), strength.touched, '', { n: strength.touched });
   }
 
   const SERIES_FACT = {
@@ -164,9 +166,9 @@
     return {
       result: resultOf(ctx.perf),
       cards: {
-        sl: slCard(an.sltp),
-        tp: tpCard(an.sltp),
-        levels: levelsCard(an.strength),
+        sl: slCard(an.sltp, ctx.units),
+        tp: tpCard(an.sltp, ctx.units),
+        levels: levelsCard(an.strength, ctx.units),
         risk: riskCard(an.seq)
       },
       context: contextDiffs(an.context),

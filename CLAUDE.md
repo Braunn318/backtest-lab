@@ -266,6 +266,10 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
 - Fixtury z reálných dat (kdyby byly potřeba) patří do „Claude files/" (gitignore), ne do repa.
 - 0.5.201 (1. 11.): popisky LTA Levels u hladin v blízkosti (taxonomy.LTA_LEVELS z deníku 4.8.99+),
   vydané jako pre-release v0.5.201-test; čeká na ověření uživatelem, pak merge do main.
+- 0.5.202 (2. 11.): přepínač jednotky vzdáleností ticky / body (app/units.js, LabUnits.context nad
+  výběrem → ctx.units; pohled unitMode). Body jen při jedné společné známé velikosti ticku výběru, jinak
+  ticky s poznámkou. Logika (sltp, overview, summary, whatif.describeConfig) bere jednotku volitelně,
+  bez ní ticky. Zdraví dat zůstává v ticích. Zatím nevydáno (release_test).
 
 ## Konvence
 - Číslování verzí (pokyn uživatele 22. 10. 2026): po 0.5.1 jde 0.5.201, 0.5.202, 0.5.203 … (čte se

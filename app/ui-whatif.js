@@ -13,6 +13,11 @@
   // Znaménko až po zaokrouhlení – jinak „+0 R".
   const signedR = v => { if (v == null) return '—'; const x = Math.round(v * 100) / 100; return (x > 0 ? '+' : x < 0 ? '−' : '') + num(Math.abs(x)) + ' R'; };
   const SCREEN = 'whatif';
+  // Jednotka vzdáleností obrazovky (ticky / body) – nastaví ji render().
+  let U = window.LabUnits.TICKS;
+  const describe = cfg => W.describeConfig(cfg, [], U);
+  // Předvolba „SL o 2 ticky širší“ v jednotce obrazovky.
+  const presetLabel = p => (p.key === 'wider2' ? `SL o ${U.d(2)} širší` : p.label);
 
   function optionsOf(ctx) {
     return { ...ctx.options, unitUSD: ctx.views.riskUnitUSD };
@@ -49,7 +54,7 @@
       ${row('Vrácení zisku z maxima', numberInput('rules.giveBackUSD', r.giveBackUSD, 'vypnuto', 'any') + ' $', 'konec, když P/L dne klesne o X $ pod denní maximum')}
     </tbody></table>
     <p class="muted" style="font-size:12px">Prázdné = vypnuto. Pravidla se kombinují – den končí u prvního, které zabere. Počítá simulátor dne (Pokročilé → Denní risk); $ limity se převádí přes 1 R = ${esc(usd(unit, 2))} (${res.unit.overridden ? 'ručně' : `medián ztráty na SL, n ${res.unit.n}`}).</p>`;
-    const head = Object.keys(r).length ? W.describeConfig({ rules: r }) : 'žádná';
+    const head = Object.keys(r).length ? describe({ rules: r }) : 'žádná';
     return block('rules', 'A) Pravidla dne', head, body, views);
   }
 
@@ -79,17 +84,18 @@
 
   function slBlock(cfg, views) {
     const sl = cfg.sl;
-    const t = sl.mode === 'actual' ? null : sl.ticks;
-    const ticks = mode => (sl.mode === mode ? ` ${numberInput('sl.ticks', t, '2', 'any')} t` : '');
+    // Zadává se v jednotce obrazovky, ukládá v tikách (onChange převádí).
+    const t = sl.mode === 'actual' ? null : U.value(sl.ticks);
+    const ticks = mode => (sl.mode === mode ? ` ${numberInput('sl.ticks', t, String(U.value(2)), 'any')} ${U.suffix}` : '');
     const body = `<div class="wi-radios">
       ${radio('sl.mode', 'actual', sl.mode, 'jak jsem ho měl')}
-      ${radio('sl.mode', 'wider', sl.mode, 'o X ticků širší', ticks('wider'))}
-      ${radio('sl.mode', 'narrower', sl.mode, 'o X ticků užší', ticks('narrower'))}
-      ${radio('sl.mode', 'fixed', sl.mode, 'pevně X ticků', ticks('fixed'))}
+      ${radio('sl.mode', 'wider', sl.mode, U.word('o X ticků širší', 'o X bodů širší'), ticks('wider'))}
+      ${radio('sl.mode', 'narrower', sl.mode, U.word('o X ticků užší', 'o X bodů užší'), ticks('narrower'))}
+      ${radio('sl.mode', 'fixed', sl.mode, U.word('pevně X ticků', 'pevně X bodů'), ticks('fixed'))}
     </div>
     <div class="wi-radio" style="margin-top:12px"><b>BE celé pozice:</b> po +${numberInput('be.afterR', cfg.be ? cfg.be.afterR : null, 'vypnuto', '0.25')} R posunout SL všech kontraktů na vstup</div>
     <p class="muted" style="font-size:12px">Prázdné = vypnuto. Platí s jakýmkoli cílem; u rozdělení před TG1 (po TG1 má runner BE vždy). Konzervativně: když cena během obchodu šla i pod vstup, nevíme, jestli před nebo po +X R – počítá se BE.</p>`;
-    const head = [sl.mode === 'actual' ? 'jak jsem ho měl' : W.describeConfig({ sl }), cfg.be ? `BE po +${num(cfg.be.afterR)} R` : ''].filter(Boolean).join(' · ');
+    const head = [sl.mode === 'actual' ? 'jak jsem ho měl' : describe({ sl }), cfg.be ? `BE po +${num(cfg.be.afterR)} R` : ''].filter(Boolean).join(' · ');
     return block('sl', 'C) SL', head, body, views);
   }
 
@@ -104,7 +110,7 @@
         t.mode === 'split' ? ` k1 = ${k('target.k1', t.k1)} k2 = ${k('target.k2', t.k2)}` : '')}
     </div>
     <p class="muted" style="font-size:12px">Konzervativně: když pořadí neznáme, počítá se horší výsledek. Rozhodují naměřené MFE / MAE a pohyb po výstupu; co nejde rozhodnout, je „nerozhodnuto“ a do P/L nevstupuje (vedle je nejhorší případ = −1 R).</p>`;
-    const head = t.mode === 'actual' ? 'jak jsem ho měl' : W.describeConfig({ target: t });
+    const head = t.mode === 'actual' ? 'jak jsem ho měl' : describe({ target: t });
     return block('target', 'D) Cíl', head, body, views);
   }
 
@@ -112,7 +118,7 @@
 
   function resultTable(res, saved) {
     const cols = [{ label: 'Skutečnost', s: res.actual, actual: true }, { label: 'Varianta', s: res.variant, res }]
-      .concat(saved.map(x => ({ label: `Uložená ${x.i + 1}`, s: x.res.variant, res: x.res, title: W.describeConfig(x.cfg) })));
+      .concat(saved.map(x => ({ label: `Uložená ${x.i + 1}`, s: x.res.variant, res: x.res, title: describe(x.cfg) })));
     const row = (label, f, strong) => `<tr${strong ? ' class="strong"' : ''}><td>${strong ? `<b>${esc(label)}</b>` : esc(label)}</td>${cols.map(c => `<td class="num">${f(c)}</td>`).join('')}</tr>`;
     const money = (v, dec = 1) => `<span class="${signClass(v)}">${esc(usd(v, dec))}</span>`;
     const head = `<tr><th></th>${cols.map(c => `<th class="num"${c.title ? ` title="${esc(c.title)}"` : ''}>${esc(c.label)}</th>`).join('')}</tr>`;
@@ -145,6 +151,7 @@
   }
 
   function render(ctx) {
+    U = window.LabUnits.of(ctx.units);
     const st = stateOf(ctx.views);
     const cfg = st.current;
     const opts = optionsOf(ctx);
@@ -154,9 +161,9 @@
 
     const presets = `<div class="card wi-presets">
       <div class="sum-head"><span class="sum-title">Rychlé předvolby</span><span class="muted sum-sub">jen vyplní volby níže, dají se kombinovat</span></div>
-      <div class="btn-row">${W.PRESETS.map(p => `<button type="button" class="btn" data-wi-preset="${esc(p.key)}">${esc(p.label)}</button>`).join('')}
+      <div class="btn-row">${W.PRESETS.map(p => `<button type="button" class="btn" data-wi-preset="${esc(p.key)}">${esc(presetLabel(p))}</button>`).join('')}
         <button type="button" class="btn" data-wi-reset="1">Vynulovat variantu</button></div>
-      <p class="wi-current"><b>Varianta:</b> ${esc(W.describeConfig(cfg))}</p>
+      <p class="wi-current"><b>Varianta:</b> ${esc(describe(cfg))}</p>
     </div>`;
 
     const dates = res.actual.dayPnl.map(d => d.date);
@@ -193,7 +200,7 @@
         <button type="button" class="btn" data-wi-copy="1">Zkopírovat jako text</button>
         <span class="muted" id="wiCopied" style="font-size:12px;align-self:center"></span>
       </div>
-      ${saved.length ? `<p class="muted" style="font-size:12px">${saved.map(x => `Uložená ${x.i + 1}: ${esc(W.describeConfig(x.cfg))}`).join('<br>')}</p>` : ''}
+      ${saved.length ? `<p class="muted" style="font-size:12px">${saved.map(x => `Uložená ${x.i + 1}: ${esc(describe(x.cfg))}`).join('<br>')}</p>` : ''}
       <div class="sub-title">Drží to?</div>
       <p>${esc(res.holds.text)}</p>
       <div class="sub-title">Co varianta odřízla</div>
@@ -230,7 +237,7 @@
     return cfg;
   }
 
-  function onChange(e, api) {
+  function onChange(e, api, ctx) {
     const el = e.target;
     if (el.dataset.wiEx) {
       const field = el.dataset.wiEx;
@@ -250,6 +257,8 @@
     else {
       const n = el.value.trim() === '' ? NaN : Number(el.value.replace(',', '.'));
       value = Number.isFinite(n) && n > 0 ? n : null;
+      // SL se zadává v jednotce obrazovky, ukládá se v tikách.
+      if (path === 'sl.ticks' && value != null) value = window.LabUnits.of(ctx && ctx.units).toTicks(value);
     }
     update(api, cfg => setPath(cfg, path, value));
     return true;

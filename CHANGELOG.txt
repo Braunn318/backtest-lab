@@ -1,3 +1,15 @@
+## 0.5.202 - 2026-11-02
+Přepínač jednotky vzdáleností ticky / body (stejný jako v deníku 4.8.100).
+- Tlačítko „📏 Ticky / Body“ vpravo nahoře. V režimu bodů ukazují SL a TP (verdikty, MAE vítězů,
+  MFE stopnutých, SL sweep, mřížka), Hladiny, Diagnóza (Vstup, SL nebo cíl?), karty Souhrnu a Co kdyby
+  vzdálenosti v bodech s desetinnou čárkou (17 t = 4,25 b u ES / MES / NQ / MNQ). SL v Co kdyby se
+  v bodech i zadává. Počítá se dál v ticích – výsledky analýz se nemění.
+- Body jen když mají všechny záznamy výběru stejnou známou velikost ticku. Jinak (např. Instrument
+  „Všechny“ s FDXS, který Lab nezná) zůstane obrazovka v ticích s poznámkou nahoře – ticky různých
+  nástrojů se v agregátech sčítají, takže je nejde převést každý zvlášť.
+- Nové app/units.js (LabUnits.context); pohled unitMode ve views.json (ukládá se jen „points“,
+  změna deníku ho nemaže). Zdraví dat (kontroly 16 a 17) zůstává v ticích – porovnává surová data.
+
 ## 0.5.201 - 2026-11-01
 LTA Levels z deníku (Futures Journal PRO 4.8.99+) u hladin v blízkosti.
 - Hladiny v blízkosti s klíči LTA_… (např. LTA_ID_VPOC) se ukazují pod svým popiskem z deníku, ne jako

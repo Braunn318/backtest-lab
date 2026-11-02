@@ -409,7 +409,10 @@ details.trades>summary{cursor:pointer;color:var(--blue);font-size:12.5px;user-se
         <h1 id="screenTitle">Diagnóza</h1>
         <div class="sub" id="screenQuestion">Kde ztrácím a kde vydělávám</div>
       </div>
-      <button class="btn" id="reload" type="button">Načíst znovu</button>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn" id="unitToggle" type="button" title="Přepne vzdálenosti mezi ticky a body (např. 17 t = 4,25 b u ES/MES/NQ/MNQ). Počítá se vždy v tikách.">📏 Ticky</button>
+        <button class="btn" id="reload" type="button">Načíst znovu</button>
+      </div>
     </div>
     <!-- Výběr platí pro všechny obrazovky a pamatuje se (ZADANI_LAB_PRESTAVBA §1). -->
     <div class="filters" id="filters">
@@ -433,6 +436,7 @@ details.trades>summary{cursor:pointer;color:var(--blue);font-size:12.5px;user-se
 </dialog>
 <script src="labels.js"></script>
 <script src="views.js"></script>
+<script src="units.js"></script>
 <script src="normalize.js"></script>
 <script src="health.js"></script>
 <script src="sltp.js"></script>

@@ -66,22 +66,22 @@
       <div class="dg-line-body">${state === 'na' ? `<span class="muted">Zatím nejde — chybí ${esc(missing)}.</span>` : `<span>${state === 'weak' ? 'Předběžně: ' : ''}${esc(text)}</span>`}${details || ''}</div></div>`;
   }
 
-  function entryCard(res) {
+  function entryCard(res, U) {
     const e = res.entrySlTarget;
     const lack = n => Math.max(0, DG.GREY - n);
     const en = e.entry, sl = e.sl, tg = e.target;
-    const entryText = `Z ${en.n} ztrát s naměřeným MFE se ${en.noRun} nepohnulo do zisku víc než ${e.noRunTicks} ticky (${en.zero} vůbec). Na 1R došlo ${en.oneR}${en.oneRN !== en.n ? ` (z ${en.oneRN} s cenou SL)` : ''}.`;
-    const slText = `90 % ziskových obchodů šlo proti nejvýš ${num(sl.p90)} t, tvůj medián SL je ${num(sl.medianSl)} t (n ${sl.n} ziskových s naměřeným MAE).`;
-    const tgText = `Po targetu cena v mediánu pokračovala ${num(tg.p50)} t, u ${tg.oneR} z ${tg.oneRN} obchodů ještě o 1R a víc.`;
-    const mfeCol = r => `MFE ${num(r.mfeMeasured)} t`;
+    const entryText = `Z ${en.n} ztrát s naměřeným MFE se ${en.noRun} nepohnulo do zisku víc než ${U.d(e.noRunTicks)} (${en.zero} vůbec). Na 1R došlo ${en.oneR}${en.oneRN !== en.n ? ` (z ${en.oneRN} s cenou SL)` : ''}.`;
+    const slText = `90 % ziskových obchodů šlo proti nejvýš ${U.d(sl.p90)}, tvůj medián SL je ${U.d(sl.medianSl)} (n ${sl.n} ziskových s naměřeným MAE).`;
+    const tgText = `Po targetu cena v mediánu pokračovala ${U.d(tg.p50)}, u ${tg.oneR} z ${tg.oneRN} obchodů ještě o 1R a víc.`;
+    const mfeCol = r => `MFE ${U.d(r.mfeMeasured)}`;
     return `<div class="card dg-entry">
       <div class="sum-head"><span class="sum-title">Vstup, SL nebo cíl?</span><span class="muted sum-sub">čísla ze stejných výpočtů jako Pokročilé → SL a TP</span></div>
       ${line('Vstup', en.state, entryText, `${lack(en.n)} stopnutých obchodů s naměřeným MFE do ${DG.GREY} (je ${en.n} z ${en.stopped})`,
-        tradesDetails(en.records.noRun, `Nerozjeté ztráty (MFE ≤ ${e.noRunTicks} t)`, mfeCol) + tradesDetails(en.records.oneR, 'Ztráty, které došly na 1R', mfeCol))}
+        tradesDetails(en.records.noRun, `Nerozjeté ztráty (MFE ≤ ${U.d(e.noRunTicks)})`, mfeCol) + tradesDetails(en.records.oneR, 'Ztráty, které došly na 1R', mfeCol))}
       ${line('SL', sl.state, slText, `${lack(sl.n)} ziskových obchodů s naměřeným MAE do ${DG.GREY} (je ${sl.n} z ${sl.winners})`,
-        tradesDetails(sl.records, 'Ziskové obchody s MAE', r => `MAE ${num(r.maeMeasured)} t · SL ${num(r.slTicks)} t`))}
+        tradesDetails(sl.records, 'Ziskové obchody s MAE', r => `MAE ${U.d(r.maeMeasured)} · SL ${U.d(r.slTicks)}`))}
       ${line('Cíl', tg.state, tgText, `${lack(tg.n)} obchodů na targetu se zapsaným pohybem po výstupu do ${DG.GREY} (je ${tg.n} z ${tg.targets})`,
-        tradesDetails(tg.records.oneR, 'Pokračovaly o 1R a víc', r => `+${num(r.postExitFavorableTicks)} t · SL ${num(r.slTicks)} t`))}
+        tradesDetails(tg.records.oneR, 'Pokračovaly o 1R a víc', r => `${U.d(r.postExitFavorableTicks, { signed: true })} · SL ${U.d(r.slTicks)}`))}
     </div>`;
   }
 
@@ -147,7 +147,7 @@
     if (res.base.missingPnl) notes.push(`${res.base.missingPnl} obchodů bez pnlRaw nevstupuje`);
     if (ctx.views.setupCode) notes.push('je zapnutý filtr setupu – pořadí v dni a dny počítají jen vybraný setup');
     return `${headerCard(res)}
-      ${entryCard(res)}
+      ${entryCard(res, window.LabUnits.of(ctx.units))}
       <h2 class="dg-h2">Kde ztrácím</h2>
       <p class="section-sub">Skupiny seřazené podle dopadu v $: P/L skupiny minus to, co by stejný počet obchodů udělal s průměrem zbytku. Nevyplněno do pořadí nevstupuje.</p>
       ${loss}

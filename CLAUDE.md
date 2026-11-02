@@ -269,7 +269,7 @@ docs/ZADANI_KONTEXT_V3.md část B, docs/ZADANI_LAB_SOUHRN.md §1):
 - 0.5.202 (2. 11.): přepínač jednotky vzdáleností ticky / body (app/units.js, LabUnits.context nad
   výběrem → ctx.units; pohled unitMode). Body jen při jedné společné známé velikosti ticku výběru, jinak
   ticky s poznámkou. Logika (sltp, overview, summary, whatif.describeConfig) bere jednotku volitelně,
-  bez ní ticky. Zdraví dat zůstává v ticích. Zatím nevydáno (release_test).
+  bez ní ticky. Zdraví dat zůstává v ticích. Vydané 2. 11. jako pre-release v0.5.202-test; čeká na ověření.
 
 ## Konvence
 - Číslování verzí (pokyn uživatele 22. 10. 2026): po 0.5.1 jde 0.5.201, 0.5.202, 0.5.203 … (čte se
